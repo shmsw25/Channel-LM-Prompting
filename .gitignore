@@ -1,0 +1,9 @@
+original
+data
+out
+*.err
+*.out
+*.txt
+__pycache__
+Makefile
+tmp*
