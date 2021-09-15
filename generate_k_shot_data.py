@@ -19,6 +19,9 @@ import pandas as pd
 from collections import defaultdict
 from pandas import DataFrame
 
+from templates import TEMPLATES
+
+
 def get_label(task, line):
     if task in ["MNLI", "MRPC", "QNLI", "QQP", "RTE", "SNLI", "SST-2", "STS-B", "WNLI", "CoLA"]:
         # GLUE style
@@ -45,8 +48,46 @@ def get_label(task, line):
             return line[-1]
         else:
             raise NotImplementedError
+    elif task in ['climate_fever', 'ethos-national_origin', 'ethos-race', 
+                  'ethos-religion', 'financial_phrasebank', 'hate_speech18', 
+                  'medical_questions_pairs', 'poem_sentiment', 'superglue-cb', 
+                  'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']:
+        return line[-1]
     else:
         return line[0]
+
+
+LABEL_WORDS = {
+    'climate_fever': ["Supports", "Refutes", "Not enough info", "Disputed"],
+    'ethos-national_origin': ["false", "true"],
+    'ethos-race': ["false", "true"],
+    'ethos-religion': ["false", "true"],
+    'financial_phrasebank': ["positive", "negative", "neutral"],
+    'hate_speech18': ["hate", "noHate"],
+    'medical_questions_pairs': ["Similar", "Dissimilar"],
+    'poem_sentiment': ["negative", "positive", "no_impact", "mixed"],
+    'superglue-cb': ["entailment", "contradiction", "neutral"],
+    'tweet_eval-hate': ["non-hate", "hate"],
+    'tweet_eval-stance_atheism': ["none", "against", "favor"],
+    'tweet_eval-stance_feminist': ["none", "against", "favor"]
+}
+
+
+def format_sent_label(task, line, template_idx):
+    line = line.strip().split('\t')
+    sent = "\t".join(line[:-1])
+    label = line[-1]
+    
+    if task in ["medical_questions_pairs", "superglue-cb"]:
+        sentences = sent.split('[SEP]')
+        sent_pieces = [sentence[sentence.index(':')+1 : ].strip() for sentence in sentences]
+        sent = TEMPLATES[task][template_idx][0] % (tuple(sent_pieces))
+    else:    
+        sent = TEMPLATES[task][template_idx][0] % (sent)
+    label_id = LABEL_WORDS[task].index(label)
+
+    return sent + '\t' + str(label_id) + '\n'
+
 
 def load_datasets(data_dir, tasks):
     datasets = {}
@@ -65,6 +106,30 @@ def load_datasets(data_dir, tasks):
                     lines = f.readlines()
                 dataset[split] = lines
             datasets[task] = dataset
+        elif task in ['climate_fever', 'ethos-national_origin', 'ethos-race',
+                      'ethos-religion', 'financial_phrasebank', 'hate_speech18', 
+                      'medical_questions_pairs', 'poem_sentiment', 'superglue-cb', 
+                      'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']:
+            
+            n_templates = 1
+
+            # CrossFit
+            dataset = {}
+            dirname = os.path.join(data_dir, task)
+            splits = ["train", "test"]
+            for split in splits:
+                # combine files
+                lines = [[], [], [], []]
+                for s in [13, 21, 42, 87, 100]:
+                    filename = os.path.join(dirname, "{}_16_{}_{}.tsv".format(task, s, split))
+                    with open(filename, "r") as f:
+                        for line in f:
+                            for template_idx in range(n_templates):
+                                lines[template_idx].append(format_sent_label(task, line, template_idx))
+                dataset[split] = lines
+            # with open("out_file.csv", "w") as f:
+            #     f.writelines(dataset["train"][0])
+            datasets[task] = dataset       
         else:
             # Other datasets (csv)
             dataset = {}
@@ -93,7 +158,12 @@ def main():
         help="Training examples for each class.")
     parser.add_argument("--task", type=str, nargs="+",
         default=['SST-2', 'sst-5', 'mr', 'cr', 'subj', 'trec',
-                 'agnews', 'amazon', 'yelp_full', 'dbpedia', 'yahoo'], #, 'mpqa', 'CoLA', 'MRPC', 'QQP', 'STS-B', 'MNLI', 'SNLI', 'QNLI', 'RTE'],
+                 'agnews', 'amazon', 'yelp_full', 'dbpedia', 'yahoo',
+                 'climate_fever', 'ethos-national_origin', 'ethos-race', 
+                 'ethos-religion', 'financial_phrasebank', 'hate_speech18',
+                 'medical_questions_pairs', 'poem_sentiment',
+                 'superglue-cb', 'tweet_eval-hate', 
+                 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist'], #, 'mpqa', 'CoLA', 'MRPC', 'QQP', 'STS-B', 'MNLI', 'SNLI', 'QNLI', 'RTE'],
         help="Task names")
     parser.add_argument("--seed", type=int, nargs="+",
         default=[100, 13, 21, 42, 87],
@@ -110,6 +180,11 @@ def main():
                         if task in ["SST-2", "sst-5", "mr", "cr", "trec", "subj"]])
     main_for_zhang(args, [task for task in args.task
                           if task in ["agnews", "amazon", "yelp_full", "dbpedia", "yahoo"]])
+    main_for_crossfit(args, [task for task in args.task
+                          if task in ['climate_fever', 'ethos-national_origin', 'ethos-race',
+                                      'ethos-religion', 'financial_phrasebank', 'hate_speech18',
+                                      'medical_questions_pairs', 'poem_sentiment', 'superglue-cb',
+                                      'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']])
 
 def main_for_gao(args, tasks):
     k = args.k
@@ -284,6 +359,64 @@ def prepro_for_zhang(dataname, split, seed, args):
             for sent, label in sents:
                 assert "\t" not in sent, sent
                 f.write("%s\t%s\n" % (sent, label))
+
+
+def main_for_crossfit(args, tasks):
+    k = args.k
+    datasets = load_datasets(os.path.join(args.data_dir, "CrossFitDatasets"), tasks)
+
+    for seed in args.seed:
+        for task, dataset in datasets.items():
+            # Set random seed
+            np.random.seed(seed)
+
+            # Set up dir
+            task_dir = os.path.join(args.output_dir, task)
+            setting_dir = os.path.join(task_dir, "{}-{}".format(k, seed))
+            os.makedirs(setting_dir, exist_ok=True)
+
+            for template_idx in range(len(dataset["train"])):
+                # Set up dir
+                template_dir = os.path.join(setting_dir, "{}".format(template_idx))
+                os.makedirs(template_dir, exist_ok=True)
+
+                # Write test splits
+                with open(os.path.join(template_dir, "test.tsv"), "w") as f:
+                    for line in dataset["test"][template_idx]:
+                        f.write(line)
+
+                # Shuffle the training set
+                train_lines = dataset['train'][template_idx]
+                np.random.shuffle(train_lines)
+
+                # Get label list for balanced sampling
+                label_list = {}
+                for line in train_lines:
+                    label = get_label(task, line)
+                    if not args.balance:
+                        label = "all"
+                    if label not in label_list:
+                        label_list[label] = [line]
+                    else:
+                        label_list[label].append(line)
+                n_classes = 1 #if args.balance else len(label_set)
+
+                # Write the training split
+                with open(os.path.join(template_dir, "train.tsv"), "w") as f:
+                    for label in label_list:
+                        for line in label_list[label][:k*n_classes]:
+                            f.write(line)
+                
+                # Write the development split
+                with open(os.path.join(template_dir, "dev.tsv"), "w") as f:
+                    for label in label_list:
+                        dev_rate = 11 if '10x' in args.mode else 2
+                        for line in label_list[label][k:k*dev_rate]:
+                            f.write(line)
+
+            if seed==args.seed[-1]:
+                print ("Done for task=%s" % task)
+
 
 if __name__ == "__main__":
     main()

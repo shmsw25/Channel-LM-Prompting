@@ -2,6 +2,8 @@ import os
 import json
 import torch
 
+from templates import TEMPLATES
+
 def prepro_sentence(test_inputs, max_length, bos_token_id, eos_token_id):
     input_ids, attention_mask, token_type_ids = [], [], []
     for test_input in test_inputs:
@@ -91,6 +93,11 @@ def get_prompts(task, idx):
                      "It is %s .",
                      "You are %s .",
                      "I am %s ."]
+    elif task in ['climate_fever', 'ethos-national_origin', 'ethos-race', 
+                   'ethos-religion', 'financial_phrasebank', 'hate_speech18',
+                   'medical_questions_pairs', 'poem_sentiment', 'superglue-cb',
+                   'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']:
+        templates = [entry[1] for entry in TEMPLATES[task]]
     else:
         raise NotImplementedError(task)
 
@@ -136,6 +143,11 @@ def get_prompts(task, idx):
                        "Entertainment & Music",
                        "Family & Relationships",
                        "Politics & Government"]
+    elif task in ['climate_fever', 'ethos-national_origin', 'ethos-race', 
+                  'ethos-religion', 'financial_phrasebank', 'hate_speech18',
+                  'medical_questions_pairs', 'poem_sentiment', 'superglue-cb',
+                  'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']:
+        label_words = TEMPLATES[task][idx][2]
     else:
         raise NotImplementedError(task)
 

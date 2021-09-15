@@ -8,13 +8,15 @@ import torch
 from util import prepro_sentence, prepro_sentence_pair, \
     prepro_sentence_pair_single
 
-def load_data(data_dir, task, k, seed, split):
+def load_data(data_dir, task, k, seed, split, template_idx=None):
     data_dir = os.path.join(data_dir, "k-shot", task, "{}-{}".format(k, seed))
+    if template_idx is not None:
+        data_dir = os.path.join(data_dir, str(template_idx))
     data = []
     if os.path.exists(os.path.join(data_dir, "{}.tsv".format(split))):
         with open(os.path.join(data_dir, "{}.tsv".format(split)), "r") as f:
             for line in f:
-                data.append(line.strip().split("\t"))
+                data.append(line.strip().replace("\\n", '\n').split("\t"))
         if task=="CoLA":
             data = [(sent, label) for _, label, _, sent in data]
         elif task=="RTE":

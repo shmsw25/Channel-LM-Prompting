@@ -11,6 +11,7 @@ from tqdm import tqdm
 from collections import Counter, defaultdict
 
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
+from transformers.deepspeed import HfDeepSpeedConfig
 
 from data import load_data, prepare_data
 from run import train, inference
@@ -24,7 +25,14 @@ N_LABELS_DICT = {"SST-2": 2, "sst-5": 5, "mr": 2, "cr": 2, "mpqa": 2,
                  "amazon": 5, "yelp_full": 5, "yelp_binary": 2,
                  "agnews": 4, "copa": 2, "boolq": 2,
                  "RTE": 2, "cb": 3,
-                 "yahoo": 10, "dbpedia": 14}
+                 "yahoo": 10, "dbpedia": 14, 'climate_fever': 4, 
+                 'ethos-national_origin': 2, 'ethos-race': 2,
+                 'ethos-religion': 2, 'financial_phrasebank': 3, 
+                 'hate_speech18': 2, 'medical_questions_pairs': 2, 
+                 'poem_sentiment': 4, 'superglue-cb': 3, 
+                 'tweet_eval-hate': 2, 'tweet_eval-stance_atheism': 3, 
+                 'tweet_eval-stance_feminist': 3
+}
 
 
 def main(logger, args):
@@ -40,10 +48,21 @@ def main(logger, args):
         train_task = args.train_task
         assert args.do_check
 
+    # datasets that also formats input sentence
+    crossfit_datasets = ['climate_fever', 'ethos-national_origin',
+                      'ethos-race', 'ethos-religion', 'financial_phrasebank',
+                      'hate_speech18', 'medical_questions_pairs', 'poem_sentiment', 
+                      'superglue-cb', 'tweet_eval-hate', 'tweet_eval-stance_atheism', 
+                      'tweet_eval-stance_feminist']
+
     # datasets where the average input length is long
     long_datasets = ["cr", "subj", "agnews",
                      "amazon", "yelp_full", "yelp_binary", "boolq",
-                     "dbpedia", "yahoo"]
+                     "dbpedia", "yahoo", 'climate_fever', 
+                     'ethos-national_origin', 'ethos-race', 
+                     'ethos-religion', 'financial_phrasebank', 'hate_speech18', 
+                     'medical_questions_pairs', 'superglue-cb', 
+                     'tweet_eval-hate' ]
     max_length = 256 if train_task in long_datasets else 128
     batch_size = int(args.batch_size / 2) if train_task in long_datasets else args.batch_size
 
@@ -60,20 +79,60 @@ def main(logger, args):
     if args.do_train or args.use_demonstrations:
         assert args.train_seed > 0
 
-    n_templates = 4
+    n_templates = 1
     k = int(args.k)
     seed = int(args.seed)
 
-    train_data = load_data(args.data_dir, train_task, k, seed, "train")
+    if args.task in crossfit_datasets:
+        train_datas = [load_data(args.data_dir, train_task, k, seed, "train", template_idx=template_idx)
+                       for template_idx in range(n_templates)] 
+    else:
+        train_data = load_data(args.data_dir, train_task, k, seed, "train")
     if args.split is None:
         assert args.do_zeroshot
         dev_data = None
     else:
-        dev_data = load_data(args.data_dir, args.task, k, seed, args.split)
+        if args.task in crossfit_datasets:
+            dev_datas = [load_data(args.data_dir, args.task, k, seed, args.split, template_idx=template_idx)
+                         for template_idx in range(n_templates)]
+        else:
+            dev_data = load_data(args.data_dir, args.task, k, seed, args.split)
+
+    if args.deep_speed:
+        ds_config = {
+            "train_batch_size": batch_size,
+            "train_micro_batch_size_per_gpu": int(batch_size / torch.cuda.device_count()),
+            "fp16": {
+                "enabled": True,
+                "loss_scale": 0,
+                "initial_scale_power": 32,
+                "loss_scale_window": 1000,
+                "hysteresis": 2,
+                "min_loss_scale": 1
+            },
+            "gradient_clipping": 1.0,
+            "zero_optimization": {
+                "stage": 3,
+                "offload_optimizer": {
+                    "device": "cpu",
+                    "pin_memory": True
+                },
+                "offload_param": {
+                    "device": "cpu",
+                    "pin_memory": True
+                }
+            },
+            "zero_allow_untested_optimizer": True
+        }
+    else:
+        ds_config = None
 
     accs = []
     # run over different templates
     for template_idx in range(n_templates):
+        if args.task in crossfit_datasets:
+            train_data = train_datas[template_idx]
+            dev_data = dev_datas[template_idx] if args.split is not None else None
         acc = run(logger, args.do_train, args.do_zeroshot,
                   args.task, train_task,
                   k, seed, args.train_seed,
@@ -81,7 +140,7 @@ def main(logger, args):
                   tokenizer, model, train_data, dev_data,
                   batch_size, max_length, args.gpt2,
                   template_idx, args.method,
-                  args.lr, args.warmup_steps,
+                  args.lr, args.warmup_steps, ds_config,
                   use_demonstrations=args.use_demonstrations,
                   use_calibration=args.use_calibration,
                   ensemble=args.ensemble,
@@ -90,7 +149,8 @@ def main(logger, args):
                   head_tune=args.head_tune,
                   transform_tune=args.transform_tune,
                   do_check=args.do_check,
-                  n_prefix=args.n_prefix)
+                  n_prefix=args.n_prefix,
+                  deep_speed=args.deep_speed)
 
         accs.append(acc)
 
@@ -103,7 +163,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         out_dir, split, tokenizer, model,
         train_data, dev_data,
         batch_size, max_length, gpt2, template_idx, method_type,
-        learning_rate, warmup_steps,
+        learning_rate, warmup_steps, ds_config,
         use_demonstrations=False,
         use_calibration=False,
         ensemble=False,
@@ -111,7 +171,8 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         prompt_tune=False,
         head_tune=False,
         transform_tune=False,
-        do_check=False, n_prefix=20):
+        do_check=False, n_prefix=20,
+        deep_speed=False):
     random.seed(train_seed)
     np.random.seed(train_seed)
     torch.manual_seed(train_seed)
@@ -129,6 +190,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
     n_classes_train = N_LABELS_DICT.get(train_task, None)
     templates_train = get_prompts(train_task, template_idx)
 
+    # TODO: maybe need to consider this for the newly added datasets
     if task in ["yelp_full", "amazon"] and train_task in ["SST-2", "mr", "cr"]:
         templates = [t.replace(".", " .") for t in templates]
 
@@ -199,6 +261,9 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
         if not do_check:
 
+            if deep_speed:
+                dschf = HfDeepSpeedConfig(ds_config)
+
             model = GPT2LMHeadModel.from_pretrained(gpt2)
 
             if prompt_tune:
@@ -226,17 +291,18 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
             model = model.cuda()
 
-            if torch.cuda.device_count() > 1:
+            if torch.cuda.device_count() > 1 and not deep_speed:
                 model = torch.nn.DataParallel(model)
 
-            train(logger, model, inputs, batch_size, out_dir,
+            train(logger, model, inputs, batch_size, out_dir, ds_config,
                   learning_rate=learning_rate,
                   warmup_steps=warmup_steps,
                   eval_period=eval_period,
                   num_training_steps=num_training_steps,
                   prompt_tune=prompt_tune,
                   head_tune=head_tune,
-                  transform_tune=transform_tune)
+                  transform_tune=transform_tune,
+                  deep_speed=deep_speed)
 
     input_tensors = prepare_data(
         tokenizer, train_data, dev_data,
@@ -254,6 +320,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
     if head_tune:
         # some tricks in case train_task and test_task are different
+        # TODO: maybe need to consider this for the newly added datasets
         if task != train_task:
             if task in ["sst-5", "yelp_full", "amazon"] and train_task in ["SST-2", "mr", "cr"]:
                 input_tensors = [input_tensors[0], input_tensors[-1]]
@@ -397,6 +464,8 @@ if __name__ == '__main__':
     parser.add_argument("--method", type=str, default="direct")
     parser.add_argument("--n_prefix", type=int, default=20)
     parser.add_argument("--gpt2", type=str, default="gpt2-large")
+
+    parser.add_argument("--deep_speed", default=False, action="store_true")
 
     args = parser.parse_args()
 

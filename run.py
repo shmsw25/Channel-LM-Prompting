@@ -1,12 +1,13 @@
 import os
 import torch
 import numpy as np
+import deepspeed
 
 from tqdm import tqdm
 
 from model_util import get_optimizer_and_scheduler, get_dataloader
 
-def train(logger, model, inputs, batch_size, output_dir,
+def train(logger, model, inputs, batch_size, output_dir, ds_config,
           learning_rate=1e-5,
           warmup_steps=50,
           num_training_steps=200,
@@ -15,7 +16,8 @@ def train(logger, model, inputs, batch_size, output_dir,
           eval_period=20,
           prompt_tune=False,
           head_tune=False,
-          transform_tune=False):
+          transform_tune=False,
+          deep_speed=False):
     optimizer, scheduler = get_optimizer_and_scheduler(
         "adamw",
         model.named_parameters(),
@@ -30,13 +32,19 @@ def train(logger, model, inputs, batch_size, output_dir,
         n_trainable_params, len(inputs["input_ids"]), num_training_steps, n_gpus))
 
     model.train()
+
+    if deep_speed:
+        model, optimizer, _, scheduler = deepspeed.initialize(model=model, model_parameters=[param for param in model.parameters() if param.requires_grad],
+                                     optimizer=optimizer, lr_scheduler=scheduler,
+                                     config_params=ds_config)
+
     global_step = 0
     train_losses = []
     best_accuracy = -1
     stop_training=False
 
     logger.info("Start training")
-    for epoch in range(num_training_steps):
+    for epoch in tqdm(range(num_training_steps)):
         for batch in dataloader:
             global_step += 1
 
@@ -56,13 +64,19 @@ def train(logger, model, inputs, batch_size, output_dir,
                 stop_training=True
                 break
             train_losses.append(loss.detach().cpu())
-            loss.backward()
+            if deep_speed:
+                model.backward(loss)
+            else:
+                loss.backward()
             if global_step % gradient_accumulation_steps == 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-                optimizer.step()    # We have accumulated enought gradients
-                model.zero_grad()
-                if scheduler is not None:
-                    scheduler.step()
+                if deep_speed:
+                    model.step()
+                else:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                    optimizer.step()    # We have accumulated enought gradients
+                    model.zero_grad()
+                    if scheduler is not None:
+                        scheduler.step()
 
             if global_step % eval_period == 0:
                 if prompt_tune:
