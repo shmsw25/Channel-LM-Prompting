@@ -40,7 +40,7 @@ TEMPLATES = {
         ("%s\\n%s\\nDo those questions have the same meaning?\\n", "%s. ", ["yes", "no"]),
         ("%s\\n%s\\nAre these two questions inquiring about the same information?\\n", "%s. ", ["yes", "no"]),
         ("%s\\n%s\\nPlease tell me if those questions are the same.\\n", "%s. ", ["yes", "no"])
-    ], #glue_qqp
+    ],
     'poem_sentiment': [
         ("%s\\nWhat is the sentiment of this line?\\n", "%s. ", ["negative", "positive", "neutral", "mixed"]),
         ("%s\\nHow would you describe the sentiment of this line?\\n", "%s. ", ["negative", "positive", "neutral", "mixed"]),
@@ -50,7 +50,7 @@ TEMPLATES = {
     'superglue-cb': [
         ("%s\\n\\nBased on the paragraph above can we conclude that \"%s\"?\\n\\n", "%s. ", ["yes", "no", "maybe"]),
         ("%s\\n\\nBased on that paragraph can we conclude that this sentence is true?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"]),
-        ("%s\\n\\nCan we draw the following conclusion?\\n%s\n\\n", "%s. ", ["yes", "no", "maybe"]),
+        ("%s\\n\\nCan we draw the following conclusion?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"]),
         ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"])
     ],
     'tweet_eval-hate': [
