@@ -1,0 +1,247 @@
+SST-2
+    zero-shot
+        channel: Accuracy = 77.1 (Avg) / 74.8 (Worst)
+        direct: Accuracy = 63.0 (Avg) / 51.1 (Worst)
+        direct++: Accuracy = 80.3 (Avg) / 76.9 (Worst)
+    concat-based demonstration
+        channel: 
+            seed 13: Accuracy = 84.7 (Avg) / 83.1 (Worst)
+            seed 21: Accuracy = 85.6 (Avg) / 84.9 (Worst)
+            seed 42: Accuracy = 86.4 (Avg) / 85.7 (Worst)
+            seed 87: Accuracy = 84.1 (Avg) / 83.5 (Worst)
+            seed 100: Accuracy = 84.5 (Avg) / 83.1 (Worst)
+        direct: 
+            seed 13: Accuracy = 51.9 (Avg) / 50.6 (Worst)
+            seed 21: Accuracy = 62.4 (Avg) / 51.4 (Worst)
+            seed 42: Accuracy = 61.5 (Avg) / 50.9 (Worst)
+            seed 87: Accuracy = 65.5 (Avg) / 51.7 (Worst)
+            seed 100: Accuracy = 53.4 (Avg) / 50.9 (Worst)
+        direct++:
+            seed 13: Accuracy = 60.9 (Avg) / 51.7 (Worst)
+            seed 21: Accuracy = 69.4 (Avg) / 65.0 (Worst)
+            seed 42: Accuracy = 66.2 (Avg) / 58.1 (Worst)
+            seed 87: Accuracy = 71.2 (Avg) / 60.6 (Worst)
+            seed 100: Accuracy = 66.3 (Avg) / 59.6 (Worst)
+    ensemble-based demonstration
+        channel: 
+            seed 13: Accuracy = 75.1 (Avg) / 71.0 (Worst)
+            seed 21: Accuracy = 81.0 (Avg) / 72.8 (Worst)
+            seed 42: Accuracy = 66.5 (Avg) / 59.5 (Worst)
+            seed 87: Accuracy = 84.7 (Avg) / 83.0 (Worst)
+            seed 100: Accuracy = 80.2 (Avg) / 73.4 (Worst)
+        direct: 
+            seed 13: Accuracy = 73.0 (Avg) / 61.7 (Worst)
+            seed 21: Accuracy = 52.3 (Avg) / 51.1 (Worst)
+            seed 42: Accuracy = 52.0 (Avg) / 50.9 (Worst)
+            seed 87: Accuracy = 57.2 (Avg) / 53.4 (Worst)
+            seed 100: Accuracy = 53.0 (Avg) / 51.5 (Worst)
+        direct++:
+            seed 13: Accuracy = 81.6 (Avg) / 76.6 (Worst)
+            seed 21: Accuracy = 80.6 (Avg) / 75.0 (Worst)
+            seed 42: Accuracy = 75.6 (Avg) / 68.0 (Worst)
+            seed 87: Accuracy = 82.0 (Avg) / 78.4 (Worst)
+            seed 100: Accuracy = 78.8 (Avg) / 72.4 (Worst)
+
+mr
+    zero-shot
+        channel: Accuracy = 74.3 (Avg) / 69.3 (Worst)
+        direct: Accuracy = 61.7 (Avg) / 50.3 (Worst)
+        direct++: Accuracy = 77.4 (Avg) / 73.2 (Worst)
+    concat-based demonstration
+        channel: 
+            seed 13: Accuracy = 78.9 (Avg) / 77.8 (Worst)
+            seed 21: Accuracy = 78.5 (Avg) / 76.8 (Worst)
+            seed 42: Accuracy = 80.4 (Avg) / 79.7 (Worst)
+            seed 87: Accuracy = 82.8 (Avg) / 82.4 (Worst)
+            seed 100: Accuracy = 81.9 (Avg) / 81.2 (Worst)
+        direct: 
+            seed 13: Accuracy = 64.1 (Avg) / 50.3 (Worst)
+            seed 21: Accuracy = 55.3 (Avg) / 50.0 (Worst)
+            seed 42: Accuracy = 57.1 (Avg) / 50.0 (Worst)
+            seed 87: Accuracy = 51.1 (Avg) / 50.0 (Worst)
+            seed 100: Accuracy = 54.5 (Avg) / 50.0 (Worst)
+        direct++:
+            seed 13: Accuracy = 57.8 (Avg) / 51.3 (Worst)
+            seed 21: Accuracy = 62.2 (Avg) / 55.8 (Worst)
+            seed 42: Accuracy = 57.1 (Avg) / 50.9 (Worst)
+            seed 87: Accuracy = 56.7 (Avg) / 50.5 (Worst)
+            seed 100: Accuracy = 67.2 (Avg) / 53.8 (Worst)
+    ensemble-based demonstration
+        channel: 
+            seed 13: Accuracy = 80.2 (Avg) / 79.3 (Worst)
+            seed 21: Accuracy = 79.7 (Avg) / 77.0 (Worst)
+            seed 42: Accuracy = 74.3 (Avg) / 70.2 (Worst)
+            seed 87: Accuracy = 64.9 (Avg) / 60.0 (Worst)
+            seed 100: Accuracy = 81.3 (Avg) / 80.7 (Worst)
+        direct: 
+            seed 13: Accuracy = 53.7 (Avg) / 50.6 (Worst)
+            seed 21: Accuracy = 57.6 (Avg) / 51.9 (Worst)
+            seed 42: Accuracy = 75.6 (Avg) / 67.8 (Worst)
+            seed 87: Accuracy = 50.4 (Avg) / 50.0 (Worst)
+            seed 100: Accuracy = 56.5 (Avg) / 51.2 (Worst)
+        direct++:
+            seed 13: Accuracy = 77.6 (Avg) / 74.6 (Worst)
+            seed 21: Accuracy = 79.7 (Avg) / 76.0 (Worst)
+            seed 42: Accuracy = 77.8 (Avg) / 69.9 (Worst)
+            seed 87: Accuracy = 68.9 (Avg) / 60.1 (Worst)
+            seed 100: Accuracy = 80.2 (Avg) / 76.5 (Worst)
+
+trec
+    zero-shot
+        channel: Accuracy = 30.5 (Avg) / 19.4 (Worst)
+        direct: Accuracy = 38.7 (Avg) / 26.0 (Worst)
+        direct++: Accuracy = 80.3 (Avg) / 76.9 (Worst)
+    concat-based demonstration
+        channel: 
+            seed 13: Accuracy = 42.4 (Avg) / 37.0 (Worst)
+            seed 21: Accuracy = 41.5 (Avg) / 26.8 (Worst)
+            seed 42: Accuracy = 42.5 (Avg) / 30.6 (Worst)
+            seed 87: Accuracy = 44.6 (Avg) / 39.0 (Worst)
+            seed 100: Accuracy = 39.1 (Avg) / 30.8 (Worst)
+        direct: 
+            seed 13: Accuracy = 25.7 (Avg) / 16.2 (Worst)
+            seed 21: Accuracy = 30.8 (Avg) / 16.4 (Worst)
+            seed 42: Accuracy = 28.2 (Avg) / 9.4 (Worst)
+            seed 87: Accuracy = 23.7 (Avg) / 14.4 (Worst)
+            seed 100: Accuracy = 27.8 (Avg) / 23.4 (Worst)
+        direct++:
+            seed 13: Accuracy = 26.6 (Avg) / 16.4 (Worst)
+            seed 21: Accuracy = 36.6 (Avg) / 22.4 (Worst)
+            seed 42: Accuracy = 32.3 (Avg) / 21.2 (Worst)
+            seed 87: Accuracy = 26.0 (Avg) / 13.0 (Worst)
+            seed 100: Accuracy = 36.4 (Avg) / 15.8 (Worst)
+    ensemble-based demonstration
+        channel: 
+            seed 13: Accuracy = 80.2 (Avg) / 79.3 (Worst)
+            seed 21: Accuracy = 79.7 (Avg) / 77.0 (Worst)
+            seed 42: Accuracy = 74.3 (Avg) / 70.2 (Worst)
+            seed 87: Accuracy = 64.9 (Avg) / 60.0 (Worst)
+            seed 100: Accuracy = 81.3 (Avg) / 80.7 (Worst)
+        direct: 
+            seed 13: Accuracy = 33.3 (Avg) / 19.6 (Worst)
+            seed 21: Accuracy = 35.9 (Avg) / 27.8 (Worst)
+            seed 42: Accuracy = 32.4 (Avg) / 16.6 (Worst)
+            seed 87: Accuracy = 22.7 (Avg) / 13.0 (Worst)
+            seed 100: Accuracy = 36.2 (Avg) / 26.6 (Worst)
+        direct++:
+            seed 13: Accuracy = 22.0 (Avg) / 9.8 (Worst)
+            seed 21: Accuracy = 22.9 (Avg) / 15.8 (Worst)
+            seed 42: Accuracy = 22.1 (Avg) / 13.0 (Worst)
+            seed 87: Accuracy = 23.1 (Avg) / 13.4 (Worst)
+            seed 100: Accuracy = 24.3 (Avg) / 16.8 (Worst)
+
+trec
+    zero-shot
+        channel: Accuracy = 57.8 (Avg) / 51.5 (Worst)
+        direct: Accuracy = 51.1 (Avg) / 49.9 (Worst)
+        direct++: Accuracy = 52.0 (Avg) / 48.8 (Worst)
+    concat-based demonstration
+        channel: 
+            seed 13: Accuracy = 60.6 (Avg) / 54.0 (Worst)
+            seed 21: Accuracy = 56.7 (Avg) / 51.8 (Worst)
+            seed 42: Accuracy = 54.5 (Avg) / 40.8 (Worst)
+            seed 87: Accuracy = 64.5 (Avg) / 61.3 (Worst)
+            seed 100: Accuracy = 66.4 (Avg) / 65.1 (Worst)
+        direct: 
+            seed 13: Accuracy = 53.1 (Avg) / 49.9 (Worst)
+            seed 21: Accuracy = 53.4 (Avg) / 50.0 (Worst)
+            seed 42: Accuracy = 58.2 (Avg) / 50.0 (Worst)
+            seed 87: Accuracy = 50.0 (Avg) / 50.0 (Worst)
+            seed 100: Accuracy = 53.8 (Avg) / 50.0 (Worst)
+        direct++:
+            seed 13: Accuracy = 55.6 (Avg) / 50.2 (Worst)
+            seed 21: Accuracy = 55.0 (Avg) / 50.0 (Worst)
+            seed 42: Accuracy = 55.0 (Avg) / 50.2 (Worst)
+            seed 87: Accuracy = 61.2 (Avg) / 50.8 (Worst)
+            seed 100: Accuracy = 57.9 (Avg) / 50.0 (Worst)
+    ensemble-based demonstration
+        channel: 
+            seed 13: Accuracy = 53.4 (Avg) / 51.4 (Worst)
+            seed 21: Accuracy = 50.5 (Avg) / 49.8 (Worst)
+            seed 42: Accuracy = 54.3 (Avg) / 50.0 (Worst)
+            seed 87: Accuracy = 50.1 (Avg) / 46.9 (Worst)
+            seed 100: Accuracy = 53.7 (Avg) / 49.1 (Worst)
+        direct: 
+            seed 13: Accuracy = 55.4 (Avg) / 50.0 (Worst)
+            seed 21: Accuracy = 50.2 (Avg) / 49.8 (Worst)
+            seed 42: Accuracy = 51.0 (Avg) / 49.9 (Worst)
+            seed 87: Accuracy = 51.4 (Avg) / 50.0 (Worst)
+            seed 100: Accuracy = 50.2 (Avg) / 49.6 (Worst)
+        direct++:
+            seed 13: Accuracy = 55.4 (Avg) / 52.3 (Worst)
+            seed 21: Accuracy = 50.6 (Avg) / 42.4 (Worst)
+            seed 42: Accuracy = 51.1 (Avg) / 41.8 (Worst)
+            seed 87: Accuracy = 53.0 (Avg) / 43.5 (Worst)
+            seed 100: Accuracy = 51.0 (Avg) / 47.9 (Worst)
+
+climate_fever
+    zero-shot
+        channel: Accuracy = 26.1
+        direct: Accuracy = 16.6
+        direct++: Accuracy = 16.6
+
+ethos-national_origin
+    zero-shot
+        channel: Accuracy = 49.4
+        direct: Accuracy = 79.3
+        direct++: Accuracy = 79.3
+
+ethos-race
+    zero-shot
+        channel: Accuracy = 52.9
+        direct: Accuracy = 81.6
+        direct++: Accuracy = 81.6
+
+ethos-religion
+    zero-shot
+        channel: Accuracy = 44.8
+        direct: Accuracy = 78.2
+        direct++: Accuracy = 78.2
+
+financial_phrasebank
+    zero-shot
+        channel: Accuracy = 47.2
+        direct: Accuracy = 18.1
+        direct++: Accuracy = 51.2
+
+hate_speech18
+    zero-shot
+        channel: Accuracy = 44.4
+        direct: Accuracy = 88.7
+        direct++: Accuracy = 88.6
+
+medical_questions_pairs
+    zero-shot
+        channel: Accuracy = 53.9
+        direct: Accuracy = 48.7
+        direct++: Accuracy = 48.0
+
+poem_sentiment
+    zero-shot
+        channel: Accuracy = 32.4
+        direct: Accuracy = 18.1
+        direct++: Accuracy = 35.2
+
+superglue-cb
+    zero-shot
+        channel: Accuracy = 25.0
+        direct: Accuracy = 57.3
+        direct++: Accuracy = 57.3
+
+tweet_eval-hate
+    zero-shot
+        channel: Accuracy = 52.1
+        direct: Accuracy = 57.3
+        direct++: Accuracy = 57.3
+
+tweet_eval-stance_atheism
+    zero-shot
+        channel: Accuracy = 32.7
+        direct: Accuracy = 59.6
+        direct++: Accuracy = 59.6
+
+tweet_eval-stance_feminist
+    zero-shot
+        channel: Accuracy = 29.9
+        direct: Accuracy = 49.3
+        direct++: Accuracy = 49.3
