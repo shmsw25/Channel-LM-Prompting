@@ -56,7 +56,7 @@ TEMPLATES = {
         ("%s\\nIs the sentiment of this line negative, positive, neutral, or mixed?\\n", "%s. ", ["negative", "positive", "neutral", "mixed"])
     ],
     'superglue-cb': [
-        ("Based on that %s, we conclude that %s", "This is %s. ", ["correct", "incorrect", "unclear"])
+        ("Based on that %s, we conclude that %s", "This is %s. ", ["correct", "incorrect", "unclear"]),
         ("%s\\n\\nBased on the paragraph above can we conclude that \"%s\"?\\n\\n", "%s. ", ["yes", "no", "maybe"]),
         ("%s\\n\\nBased on that paragraph can we conclude that this sentence is true?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"]),
         ("%s\\n\\nCan we draw the following conclusion?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"]),
