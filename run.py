@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from model_util import get_optimizer_and_scheduler, get_dataloader
 
-def train(logger, model, inputs, batch_size, output_dir, ds_config,
+def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
           learning_rate=1e-5,
           warmup_steps=50,
           num_training_steps=200,
@@ -78,7 +78,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config,
                     if scheduler is not None:
                         scheduler.step()
 
-            if global_step % eval_period == 0:
+            if global_step % eval_period == 0 and local_rank == 0:
                 if prompt_tune:
                     keys = ["transformer.wte.new_embed.weight"]
                     model_state_dict = {key: model.state_dict()[key if n_gpus==1 else "module."+key].cpu() for key in keys}

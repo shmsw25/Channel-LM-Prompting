@@ -187,7 +187,10 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
 
 
     if not os.path.exists(base_dir):
-        os.makedirs(base_dir)
+        try:
+            os.makedirs(base_dir)
+        except:
+            pass
 
     if do_zeroshot:
         cache_path = str(split)

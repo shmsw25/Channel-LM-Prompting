@@ -82,6 +82,7 @@ def main(logger, args):
     n_templates = 1
     k = int(args.k)
     seed = int(args.seed)
+    local_rank = int(args.local_rank) if args.local_rank is not None else -1
 
     if args.task in crossfit_datasets:
         train_datas = [load_data(args.data_dir, train_task, k, seed, "train", template_idx=template_idx)
@@ -103,7 +104,7 @@ def main(logger, args):
             "train_batch_size": batch_size,
             "train_micro_batch_size_per_gpu": int(batch_size / torch.cuda.device_count()),
             "fp16": {
-                "enabled": True,
+                "enabled": False,
                 "loss_scale": 0,
                 "initial_scale_power": 32,
                 "loss_scale_window": 1000,
@@ -140,7 +141,7 @@ def main(logger, args):
                   tokenizer, model, train_data, dev_data,
                   batch_size, max_length, args.gpt2,
                   template_idx, args.method,
-                  args.lr, args.warmup_steps, ds_config,
+                  args.lr, args.warmup_steps, ds_config, local_rank,
                   use_demonstrations=args.use_demonstrations,
                   use_calibration=args.use_calibration,
                   ensemble=args.ensemble,
@@ -163,7 +164,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         out_dir, split, tokenizer, model,
         train_data, dev_data,
         batch_size, max_length, gpt2, template_idx, method_type,
-        learning_rate, warmup_steps, ds_config,
+        learning_rate, warmup_steps, ds_config, local_rank,
         use_demonstrations=False,
         use_calibration=False,
         ensemble=False,
@@ -173,6 +174,10 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         transform_tune=False,
         do_check=False, n_prefix=20,
         deep_speed=False):
+
+    if local_rank >= 0:
+        torch.cuda.set_device(local_rank)
+
     random.seed(train_seed)
     np.random.seed(train_seed)
     torch.manual_seed(train_seed)
@@ -291,10 +296,17 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
             model = model.cuda()
 
-            if torch.cuda.device_count() > 1 and not deep_speed:
-                model = torch.nn.DataParallel(model)
+            # if torch.cuda.device_count() > 1 and not deep_speed:
+            #     model = torch.nn.DataParallel(model) 
+            
+            # distributed
+            if local_rank >= 0 and not deep_speed:
+                torch.distributed.init_process_group("nccl", init_method='env://')
+                model = torch.nn.parallel.DistributedDataParallel(model,
+                                                device_ids=[local_rank],
+                                                output_device=local_rank)
 
-            train(logger, model, inputs, batch_size, out_dir, ds_config,
+            train(logger, model, inputs, batch_size, out_dir, ds_config, max(local_rank, 0),
                   learning_rate=learning_rate,
                   warmup_steps=warmup_steps,
                   eval_period=eval_period,
@@ -303,6 +315,10 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                   head_tune=head_tune,
                   transform_tune=transform_tune,
                   deep_speed=deep_speed)
+
+            if local_rank > 0:
+                logger.info("rank {} exited!".format(local_rank))
+                exit()
 
     input_tensors = prepare_data(
         tokenizer, train_data, dev_data,
@@ -466,6 +482,7 @@ if __name__ == '__main__':
     parser.add_argument("--gpt2", type=str, default="gpt2-large")
 
     parser.add_argument("--deep_speed", default=False, action="store_true")
+    parser.add_argument("--local_rank", type=str)
 
     args = parser.parse_args()
 
