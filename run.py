@@ -24,6 +24,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
         learning_rate=learning_rate,
         warmup_steps=warmup_steps,
         num_training_steps=num_training_steps)
+    scaler = torch.cuda.amp.GradScaler()
     dataloader = get_dataloader(inputs, batch_size, is_training=True)
 
     n_trainable_params = len([param for param in model.parameters() if param.requires_grad])
@@ -56,8 +57,9 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
             else:
                 labels=batch[3].cuda()
 
-            loss = run_model(model, input_ids, attention_mask, token_type_ids, labels=labels)
-            loss = loss.mean()
+            with torch.cuda.amp.autocast():
+                loss = run_model(model, input_ids, attention_mask, token_type_ids, labels=labels)
+                loss = loss.mean()
 
             if torch.isnan(loss).data:
                 print ("Stop training because loss=%s" % (loss.data))
@@ -67,13 +69,13 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
             if deep_speed:
                 model.backward(loss)
             else:
-                loss.backward()
+                scaler.scale(loss).backward()
             if global_step % gradient_accumulation_steps == 0:
                 if deep_speed:
                     model.step()
                 else:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-                    optimizer.step()    # We have accumulated enought gradients
+                    scaler.step(optimizer)    # We have accumulated enought gradients
                     model.zero_grad()
                     if scheduler is not None:
                         scheduler.step()
@@ -95,6 +97,9 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                 logger.info("Saving model at global_step=%d (train loss %.2f)" % \
                             (global_step, np.mean(train_losses)))
                 train_losses = []
+
+            if not deep_speed:
+                scaler.update()
 
             if global_step==num_training_steps:
                 break
