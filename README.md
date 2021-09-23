@@ -67,9 +67,13 @@ wget https://nlp.cs.princeton.edu/projects/lm-bff/datasets.tar
 tar xvf datasets.tar
 cd ..
 ```
-Also, download the data from [here][zhang-data] and place it in `data/original`.
+Also, download `TextClassificationDatasets.zip` from [here][zhang-data] (download the entire directory as in the figure below)
+and place it under `data/original`.
+<p align="center">
+  <img src="img/data_download.png" width="30%" height="30%">
+</p>
 
-Then, run `python3 generative_k_shot_data.py`, and you are done!
+Then, run `python3 generate_k_shot_data.py`, and you are done!
 
 Optionally, you can specify arguments such as
 * `--k`: number of training examples (default is `16`).
