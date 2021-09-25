@@ -18,7 +18,7 @@ def train(logger, model, inputs, batch_size, output_dir,
           transform_tune=False):
     optimizer, scheduler = get_optimizer_and_scheduler(
         "adamw",
-        model.named_parameters(),
+        model,
         learning_rate=learning_rate,
         warmup_steps=warmup_steps,
         num_training_steps=num_training_steps)

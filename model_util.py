@@ -78,7 +78,8 @@ def get_dataloader(inputs, batch_size, is_training):
     dataloader = DataLoader(dataset, sampler=sampler, batch_size=batch_size)
     return dataloader
 
-def get_optimizer_and_scheduler(optimizer_name, named_parameters,
+def get_optimizer_and_scheduler(optimizer_name,
+                                model,
                                 learning_rate=1e-5,
                                 warmup_proportion=0.01,
                                 warmup_steps=50,
@@ -87,8 +88,8 @@ def get_optimizer_and_scheduler(optimizer_name, named_parameters,
                                 num_training_steps=1000):
     no_decay = ['bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in named_parameters if not any(nd in n for nd in no_decay)], 'weight_decay': weight_decay},
-        {'params': [p for n, p in named_parameters if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': weight_decay},
+        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
     #optimizer_grouped_parameters = [p for n, p in named_parameters]
 
