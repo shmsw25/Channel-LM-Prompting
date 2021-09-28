@@ -17,6 +17,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
           prompt_tune=False,
           head_tune=False,
           transform_tune=False,
+          prior_tune=False,
           deep_speed=False):
     optimizer, scheduler = get_optimizer_and_scheduler(
         "adamw",
@@ -29,6 +30,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
 
     n_trainable_params = len([param for param in model.parameters() if param.requires_grad])
     n_gpus = torch.cuda.device_count()
+    alpha = model.module.lm_head.alpha
     logger.info("Training {} parameters on {} examples for {} steps using {} GPUs".format(
         n_trainable_params, len(inputs["input_ids"]), num_training_steps, n_gpus))
 
@@ -52,13 +54,14 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
             input_ids=batch[0].cuda()
             attention_mask=batch[1].cuda()
             token_type_ids=batch[2].cuda()
-            if len(batch)==3:
+            classes=batch[3].cuda()
+            if len(batch)==4:
                 labels=None
             else:
-                labels=batch[3].cuda()
+                labels=batch[4].cuda()
 
             with torch.cuda.amp.autocast():
-                loss = run_model(model, input_ids, attention_mask, token_type_ids, labels=labels)
+                loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes, labels=labels, alpha=alpha)
                 loss = loss.mean()
 
             if torch.isnan(loss).data:
@@ -90,6 +93,9 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                 elif transform_tune:
                     keys = ["lm_head.transform.weight"]
                     model_state_dict = {key: model.state_dict()[key if n_gpus==1 else "module."+key].cpu() for key in keys}
+                elif prior_tune:
+                    keys = ["lm_head.alpha"]
+                    model_state_dict = {key: model.state_dict()[key if local_rank<0 else "module."+key].cpu() for key in keys}
                 else:
                     model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}
                 torch.save(model_state_dict,
@@ -117,23 +123,24 @@ def inference(model, inputs, batch_size, return_logits=False):
         input_ids=batch[0].cuda()
         attention_mask=batch[1].cuda()
         token_type_ids=batch[2].cuda()
+        classes=batch[3].cuda()
 
-        if len(batch)==3:
+        if len(batch)==4:
             labels=None
         else:
-            labels=batch[3].cuda()
+            labels=batch[4].cuda()
 
         with torch.no_grad():
-            loss = run_model(model, input_ids, attention_mask, token_type_ids,
-                             labels=labels, return_logits=return_logits)
+            loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes,
+                             labels=labels, return_logits=return_logits, alpha=model.lm_head.alpha)
 
         all_losses += loss.cpu().detach().numpy().tolist()
 
     return all_losses
 
 
-def run_model(model, input_ids, attention_mask, token_type_ids,
-              labels=None, return_logits=False):
+def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
+              labels=None, return_logits=False, alpha=None):
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     logits = outputs.logits[..., :-1, :].contiguous()
 
@@ -146,10 +153,14 @@ def run_model(model, input_ids, attention_mask, token_type_ids,
     labels = labels[..., 1:].contiguous()
     label_mask = token_type_ids[..., 1:].contiguous()
 
+    prior_values = 0
+    if classes is not None:
+        prior_values = classes * (1 - alpha) + ((classes - 1) * -1) * alpha
+
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
     losses = losses.view(logits.size(0), logits.size(1)) * label_mask
-    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1)
+    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + prior_values
 

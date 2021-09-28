@@ -9,7 +9,7 @@ from transformers import Adafactor, AdamW, get_linear_schedule_with_warmup
 from transformers import GPT2LMHeadModel
 
 def load_checkpoint(gpt2, checkpoint=None,
-                    prompt_tune=False, head_tune=False, transform_tune=False,
+                    prompt_tune=False, head_tune=False, transform_tune=False, prior_tune=False,
                     n_prefix=20,
                     mapping=None):
 
@@ -20,7 +20,7 @@ def load_checkpoint(gpt2, checkpoint=None,
             return key
         return {_convert(key):value for key, value in state_dict.items()}
 
-    if checkpoint is not None and not prompt_tune and not head_tune and not transform_tune:
+    if checkpoint is not None and not prompt_tune and not head_tune and not transform_tune and not prior_tune:
         assert os.path.exists(checkpoint)
         model = GPT2LMHeadModel.from_pretrained(
             gpt2,
@@ -49,6 +49,12 @@ def load_checkpoint(gpt2, checkpoint=None,
             model.lm_head.transform._load_from_state_dict(
                 {"weight": weight}, "", None, True, [], [], "")
 
+        elif prior_tune:
+            weight = torch.load(checkpoint)["lm_head.alpha"]
+            set_prior(model)
+            model.lm_head._load_from_state_dict(
+                {"alpha": weight}, "", None, True, [], [], "")
+
         else:
             raise NotImplementedError()
 
@@ -57,19 +63,21 @@ def load_checkpoint(gpt2, checkpoint=None,
 def get_dataloader(inputs, batch_size, is_training):
 
     shape = inputs["input_ids"].shape
-    for v in inputs.values():
-        assert v.shape==shape
+    # for v in inputs.values():
+    #     assert v.shape==shape
 
     if "labels" in inputs:
         dataset = TensorDataset(inputs["input_ids"],
                                 inputs["attention_mask"],
                                 inputs["token_type_ids"],
+                                inputs["classes"],
                                 inputs["labels"])
 
     else:
         dataset = TensorDataset(inputs["input_ids"],
                                 inputs["attention_mask"],
-                                inputs["token_type_ids"])
+                                inputs["token_type_ids"],
+                                inputs["classes"])
 
     if is_training:
         sampler=RandomSampler(dataset)
@@ -178,6 +186,17 @@ class MyLMHeadWithTransform(torch.nn.Module):
         return self.lm_head(self.transform(input))
 
 
+class OraclePrior(torch.nn.Module):
+
+    def __init__(self, lm_head):
+        super().__init__()
+        self.lm_head = lm_head
+        self.alpha = torch.nn.Parameter(torch.tensor(0.5))
+
+    def forward(self, input):
+        return self.lm_head(input)
+
+
 def set_extra_embeddings(model, n_prefix):
     model.transformer.set_input_embeddings(
         MyEmbedding(model.transformer.wte, n_prefix))
@@ -193,3 +212,7 @@ def set_separate_embeddings(model, mapping):
 def set_transformed_lm_head(model):
     model.set_output_embeddings(
         MyLMHeadWithTransform(model.lm_head))
+
+def set_prior(model):
+    model.set_output_embeddings(
+        OraclePrior(model.lm_head))

@@ -16,7 +16,7 @@ from transformers.deepspeed import HfDeepSpeedConfig
 from data import load_data, prepare_data
 from run import train, inference
 from model_util import load_checkpoint, set_extra_embeddings, \
-    set_separate_lm_head, set_separate_embeddings, set_transformed_lm_head
+    set_separate_lm_head, set_separate_embeddings, set_transformed_lm_head, set_prior
 from util import get_prompts, get_paths, flatten_label_losses, \
     prepend_task_tokens, reassign_output_tokens
 
@@ -149,6 +149,7 @@ def main(logger, args):
                   prompt_tune=args.prompt_tune,
                   head_tune=args.head_tune,
                   transform_tune=args.transform_tune,
+                  prior_tune=args.prior_tune,
                   do_check=args.do_check,
                   n_prefix=args.n_prefix,
                   deep_speed=args.deep_speed)
@@ -172,6 +173,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         prompt_tune=False,
         head_tune=False,
         transform_tune=False,
+        prior_tune=False,
         do_check=False, n_prefix=20,
         deep_speed=False):
 
@@ -188,6 +190,8 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
     if head_tune or transform_tune:
         assert method_type == "direct"
 
+    if prior_tune:
+        assert method_type == "channel"
 
     n_classes = N_LABELS_DICT.get(task, None)
     templates = get_prompts(task, template_idx)
@@ -232,6 +236,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                             prompt_tune=prompt_tune,
                             head_tune=head_tune,
                             transform_tune=transform_tune,
+                            prior_tune=prior_tune,
                             n_prefix=n_prefix)
 
         k = int(k)
@@ -250,7 +255,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
     if do_train and (head_tune or not do_check):
 
         inputs = prepare_data(
-            tokenizer, None, train_data,
+            tokenizer, None, train_data if not prior_tune else list(np.array(dev_data)[np.random.randint(len(dev_data), size=50)]),
             max_length=max_length,
             max_length_per_example=max_length_per_example,
             n_classes=n_classes_train,
@@ -294,6 +299,12 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                 for param in model.lm_head.transform.parameters():
                     param.requires_grad = True
 
+            elif prior_tune:
+                set_prior(model)
+                for param in model.parameters():
+                    param.requires_grad = False
+                model.lm_head.alpha.requires_grad = True
+
             model = model.cuda()
 
             # if torch.cuda.device_count() > 1 and not deep_speed:
@@ -314,11 +325,12 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                   prompt_tune=prompt_tune,
                   head_tune=head_tune,
                   transform_tune=transform_tune,
+                  prior_tune = prior_tune,
                   deep_speed=deep_speed)
 
-            if local_rank > 0:
-                logger.info("rank {} exited!".format(local_rank))
-                exit()
+    if local_rank > 0:
+        logger.info("rank {} exited!".format(local_rank))
+        exit()
 
     input_tensors = prepare_data(
         tokenizer, train_data, dev_data,
@@ -398,9 +410,13 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                                         prompt_tune=prompt_tune,
                                         head_tune=head_tune,
                                         transform_tune=transform_tune,
+                                        prior_tune=prior_tune,
                                         n_prefix=n_prefix,
                                         mapping=mapping)
                 model = model.cuda()
+                # for debugging
+                if prior_tune:
+                    logger.info("The oracle prior's value is: {}".format(model.lm_head.alpha.item()))
                 model.eval()
                 logger.info("Finished loading the model")
 
@@ -460,6 +476,7 @@ if __name__ == '__main__':
     parser.add_argument("--prompt_tune", default=False, action="store_true")
     parser.add_argument("--head_tune", default=False, action="store_true")
     parser.add_argument("--transform_tune", default=False, action="store_true")
+    parser.add_argument("--prior_tune", default=False, action="store_true")
 
     parser.add_argument("--log_file", default=None, type=str)
 

@@ -42,7 +42,7 @@ def load_data(data_dir, task, k, seed, split, template_idx=None):
 def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_example,
                  n_classes=2, templates=None, method_type="generative",
                  is_training=False, use_demonstrations=False,
-                 ensemble=False, is_null=False):
+                 ensemble=False, is_null=False, oracle_prior=False):
 
     if type(templates)==list:
         transform = None
@@ -113,7 +113,7 @@ def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_ex
         assert not use_demonstrations
         assert not ensemble
 
-        input_ids, attention_mask, token_type_ids = [], [], []
+        input_ids, attention_mask, token_type_ids, classes = [], [], [], []
         for test_input, dp in zip(test_inputs, test_data):
             if transform is not None:
                 test_input, test_output = test_input
@@ -133,9 +133,11 @@ def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_ex
             input_ids.append(encoded[0])
             attention_mask.append(encoded[1])
             token_type_ids.append(encoded[2])
+            classes.append(int(dp[1]))
         return dict(input_ids=torch.LongTensor(input_ids),
                     attention_mask=torch.LongTensor(attention_mask),
-                    token_type_ids=torch.LongTensor(token_type_ids))
+                    token_type_ids=torch.LongTensor(token_type_ids),
+                    classes=torch.LongTensor(classes))
 
     if use_demonstrations:
 
@@ -222,6 +224,7 @@ def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_ex
                           attention_mask=torch.LongTensor(attention_mask),
                           token_type_ids=torch.LongTensor(token_type_ids))
 
+        tensor["classes"] = torch.LongTensor([i] * len(tensor["input_ids"]))
         input_tensors.append(tensor)
 
 

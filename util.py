@@ -162,6 +162,7 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
               prompt_tune=False,
               head_tune=False,
               transform_tune=False,
+              prior_tune=False,
               n_prefix=20):
 
     model_name = gpt2
@@ -175,6 +176,8 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
             model_name += "-head-ft"
         elif transform_tune:
             model_name += "-transform-ft"
+        elif prior_tune:
+            model_name += "-prior-ft"
         else:
             model_name += "-all-ft"
 
