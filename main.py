@@ -128,13 +128,13 @@ def main(logger, args):
     else:
         ds_config = None
 
-    accs = []
+    accs, f1s = [], []
     # run over different templates
     for template_idx in range(n_templates):
         if args.task in crossfit_datasets:
             train_data = train_datas[template_idx]
             dev_data = dev_datas[template_idx] if args.split is not None else None
-        acc = run(logger, args.do_train, args.do_zeroshot,
+        acc, f1 = run(logger, args.do_train, args.do_zeroshot,
                   args.task, train_task,
                   k, seed, args.train_seed,
                   args.out_dir, args.split,
@@ -155,9 +155,11 @@ def main(logger, args):
                   deep_speed=args.deep_speed)
 
         accs.append(acc)
+        f1s.append(f1)
 
     if args.split is not None:
         logger.info("Accuracy = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(accs), 100*np.min(accs)))
+        logger.info("Micro-F1 = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(f1s), 100*np.min(f1s)))
 
 
 def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
@@ -449,19 +451,37 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                 losses[i] = loss - bias_loss
 
 
-        acc = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)})
+        acc, f1 = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)})
         logger.info(acc)
-        return acc
+        logger.info(f1)
+        return acc, f1
 
-def evaluate(dev_data, label_losses):
-    labels = list(label_losses.keys())
-    acc = []
+def evaluate(dev_data, label_losses, is_classification=True):
+    if type(label_losses)==list:
+        label_losses = np.array(label_losses)
+    accs = []
+    precisions = defaultdict(list)
+    recalls = defaultdict(list)
     for idx, (_, label) in enumerate(dev_data):
         label_loss = {l:np.sum(label_losses[l][idx]) for l in label_losses}
         prediction = sorted(label_loss.items(), key=lambda x: x[1])[0][0]
-        acc.append(prediction==label)
-    return np.mean(acc)
+        accs.append(prediction==label)
+        precisions[prediction].append(prediction==label)
+        recalls[label].append(prediction==label)
 
+    if not is_classification:
+        return np.mean(accs)
+
+    f1s = []
+    for key in recalls:
+        precision = np.mean(precisions[key]) if key in precisions else 1.0
+        recall = np.mean(recalls[key])
+        if precision+recall==0:
+            f1s.append(0)
+        else:
+            f1s.append(2*precision*recall / (precision+recall))
+
+    return np.mean(accs), np.mean(f1s)
 
 if __name__ == '__main__':
 
