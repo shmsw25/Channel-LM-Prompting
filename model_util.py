@@ -11,7 +11,8 @@ from transformers import GPT2LMHeadModel
 def load_checkpoint(gpt2, checkpoint=None,
                     prompt_tune=False, head_tune=False, transform_tune=False, prior_tune=False,
                     n_prefix=20,
-                    mapping=None):
+                    mapping=None,
+                    n_classes=None):
 
     def convert_to_single_gpu(state_dict):
         def _convert(key):
@@ -50,10 +51,10 @@ def load_checkpoint(gpt2, checkpoint=None,
                 {"weight": weight}, "", None, True, [], [], "")
 
         elif prior_tune:
-            weight = torch.load(checkpoint)["lm_head.alpha"]
-            set_prior(model)
+            weight = torch.load(checkpoint)["lm_head.priors"]
+            set_prior(model, n_classes=n_classes)
             model.lm_head._load_from_state_dict(
-                {"alpha": weight}, "", None, True, [], [], "")
+                {"priors": weight}, "", None, True, [], [], "")
 
         else:
             raise NotImplementedError()
@@ -188,10 +189,10 @@ class MyLMHeadWithTransform(torch.nn.Module):
 
 class OraclePrior(torch.nn.Module):
 
-    def __init__(self, lm_head):
+    def __init__(self, lm_head, n_classes):
         super().__init__()
         self.lm_head = lm_head
-        self.alpha = torch.nn.Parameter(torch.tensor(0.5))
+        self.priors = torch.nn.Parameter(torch.tensor([0.5] * n_classes))
 
     def forward(self, input):
         return self.lm_head(input)
@@ -213,6 +214,6 @@ def set_transformed_lm_head(model):
     model.set_output_embeddings(
         MyLMHeadWithTransform(model.lm_head))
 
-def set_prior(model):
+def set_prior(model, n_classes):
     model.set_output_embeddings(
-        OraclePrior(model.lm_head))
+        OraclePrior(model.lm_head, n_classes))

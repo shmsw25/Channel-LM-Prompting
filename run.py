@@ -30,7 +30,6 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
 
     n_trainable_params = len([param for param in model.parameters() if param.requires_grad])
     n_gpus = torch.cuda.device_count()
-    alpha = model.module.lm_head.alpha
     logger.info("Training {} parameters on {} examples for {} steps using {} GPUs".format(
         n_trainable_params, len(inputs["input_ids"]), num_training_steps, n_gpus))
 
@@ -61,7 +60,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                 labels=batch[4].cuda()
 
             with torch.cuda.amp.autocast():
-                loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes, labels=labels, alpha=alpha)
+                loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes, labels=labels, priors=model.module.lm_head.priors)
                 loss = loss.mean()
 
             if torch.isnan(loss).data:
@@ -94,7 +93,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                     keys = ["lm_head.transform.weight"]
                     model_state_dict = {key: model.state_dict()[key if n_gpus==1 else "module."+key].cpu() for key in keys}
                 elif prior_tune:
-                    keys = ["lm_head.alpha"]
+                    keys = ["lm_head.priors"]
                     model_state_dict = {key: model.state_dict()[key if local_rank<0 else "module."+key].cpu() for key in keys}
                 else:
                     model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}
@@ -132,7 +131,7 @@ def inference(model, inputs, batch_size, return_logits=False):
 
         with torch.no_grad():
             loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes,
-                             labels=labels, return_logits=return_logits, alpha=model.lm_head.alpha)
+                             labels=labels, return_logits=return_logits, priors=model.lm_head.priors)
 
         all_losses += loss.cpu().detach().numpy().tolist()
 
@@ -140,7 +139,7 @@ def inference(model, inputs, batch_size, return_logits=False):
 
 
 def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
-              labels=None, return_logits=False, alpha=None):
+              labels=None, return_logits=False, priors=None):
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     logits = outputs.logits[..., :-1, :].contiguous()
 
@@ -155,12 +154,16 @@ def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
 
     prior_values = 0
     if classes is not None:
-        prior_values = classes * (1 - alpha) + ((classes - 1) * -1) * alpha
+        class_matrix = torch.zeros(len(classes), len(priors)).cuda()
+        for i in range(len(classes)):
+            class_matrix[i][classes[i]] = 1
+        prior_softmax = torch.nn.Softmax(dim=0)(priors)
+        prior_values = class_matrix @ prior_softmax
 
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
     losses = losses.view(logits.size(0), logits.size(1)) * label_mask
-    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + prior_values
+    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + torch.log(prior_values)
 

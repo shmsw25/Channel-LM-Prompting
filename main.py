@@ -302,10 +302,10 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                     param.requires_grad = True
 
             elif prior_tune:
-                set_prior(model)
+                set_prior(model, n_classes)
                 for param in model.parameters():
                     param.requires_grad = False
-                model.lm_head.alpha.requires_grad = True
+                model.lm_head.priors.requires_grad = True 
 
             model = model.cuda()
 
@@ -414,11 +414,14 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                                         transform_tune=transform_tune,
                                         prior_tune=prior_tune,
                                         n_prefix=n_prefix,
-                                        mapping=mapping)
-                model = model.cuda()
-                # for debugging
+                                        mapping=mapping,
+                                        n_classes=n_classes)
+
+                # For debugging
                 if prior_tune:
-                    logger.info("The oracle prior's value is: {}".format(model.lm_head.alpha.item()))
+                    logger.info("The oracle prior's value are: {}".format(model.lm_head.priors.tolist()))
+
+                model = model.cuda()
                 model.eval()
                 logger.info("Finished loading the model")
 
