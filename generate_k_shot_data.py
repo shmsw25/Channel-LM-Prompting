@@ -128,6 +128,13 @@ def load_datasets(data_dir, tasks, k=-1):
                                 for template_idx in range(n_templates):
                                     lines[template_idx].append(format_sent_label(task, line, template_idx))
                     dataset[split] = lines
+                filename = os.path.join(dirname, "{}_16384_100_test.tsv".format(task))
+                lines = [[] for i in range(n_templates)]
+                with open(filename, "r") as f:
+                    for line in f:
+                        for template_idx in range(n_templates):
+                            lines[template_idx].append(format_sent_label(task, line, template_idx))
+                dataset["test"] = lines
             else:
                 splits = ["train", "dev", "test"]
                 for split in splits:
@@ -391,8 +398,8 @@ def main_for_crossfit(args, tasks):
 
                 if k != 16384:
                     # Write test splits
-                    with open(os.path.join(template_dir, "dev.tsv"), "w") as f:
-                        for line in dataset["dev"][template_idx]:
+                    with open(os.path.join(template_dir, "test.tsv"), "w") as f:
+                        for line in dataset["test"][template_idx]:
                             f.write(line)
 
                     # Shuffle the training set

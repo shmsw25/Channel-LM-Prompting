@@ -192,9 +192,6 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
     if head_tune or transform_tune:
         assert method_type == "direct"
 
-    if prior_tune:
-        assert method_type == "channel"
-
     n_classes = N_LABELS_DICT.get(task, None)
     templates = get_prompts(task, template_idx)
 
@@ -243,7 +240,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
         k = int(k)
         eval_period = 100
-        num_training_steps = 400
+        num_training_steps = 400 if k != 16384 else 1000
 
         cache_paths = [os.path.join(out_dir, "{}cache-{}-{}.pkl".format(
             task + "-" if train_task != task else "",
