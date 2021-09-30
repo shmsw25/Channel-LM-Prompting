@@ -254,7 +254,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
     if do_train and (head_tune or not do_check):
 
         inputs = prepare_data(
-            tokenizer, None, train_data if not prior_tune else list(np.array(dev_data)[np.random.randint(len(dev_data), size=50)]),
+            tokenizer, None, train_data,
             max_length=max_length,
             max_length_per_example=max_length_per_example,
             n_classes=n_classes_train,
@@ -266,7 +266,10 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         logger.info(out_dir)
 
         if not os.path.exists(out_dir):
-            os.mkdir(out_dir)
+            try:
+                os.mkdir(out_dir)
+            except:
+                pass
 
         if not do_check:
 
