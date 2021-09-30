@@ -89,7 +89,7 @@ def format_sent_label(task, line, template_idx):
     return sent + '\t' + str(label_id) + '\n'
 
 
-def load_datasets(data_dir, tasks):
+def load_datasets(data_dir, tasks, k=-1):
     datasets = {}
     for task in tasks:
         if task in ["MNLI", "MRPC", "QNLI", "QQP", "RTE", "SNLI", "SST-2", "STS-B", "WNLI", "CoLA"]:
@@ -116,25 +116,34 @@ def load_datasets(data_dir, tasks):
             # CrossFit
             dataset = {}
             dirname = os.path.join(data_dir, task)
-            splits = ["train", "test"]
-            for split in splits:
-                # combine files
-                lines = [[], [], [], []]
-                for s in [13, 21, 42, 87, 100]:
-                    filename = os.path.join(dirname, "{}_16_{}_{}.tsv".format(task, s, split))
+            if k != 16384:
+                splits = ["train", "dev"]
+                for split in splits:
+                    # combine files
+                    lines = [[] for i in range(n_templates)]
+                    for s in [13, 21, 42, 87, 100]:
+                        filename = os.path.join(dirname, "{}_16_{}_{}.tsv".format(task, s, split))
+                        with open(filename, "r") as f:
+                            for line in f:
+                                for template_idx in range(n_templates):
+                                    lines[template_idx].append(format_sent_label(task, line, template_idx))
+                    dataset[split] = lines
+            else:
+                splits = ["train", "dev", "test"]
+                for split in splits:
+                    filename = os.path.join(dirname, "{}_16384_100_{}.tsv".format(task, split))
+                    lines = [[] for i in range(n_templates)]
                     with open(filename, "r") as f:
                         for line in f:
                             for template_idx in range(n_templates):
                                 lines[template_idx].append(format_sent_label(task, line, template_idx))
-                dataset[split] = lines
-            # with open("out_file.csv", "w") as f:
-            #     f.writelines(dataset["train"][0])
+                    dataset[split] = lines
             datasets[task] = dataset       
         else:
             # Other datasets (csv)
             dataset = {}
             dirname = os.path.join(data_dir, task)
-            splits = ["train", "test"]
+            splits = ["train", "dev", "test"]
             for split in splits:
                 filename = os.path.join(dirname, f"{split}.csv")
                 dataset[split] = pd.read_csv(filename, header=None)
@@ -363,7 +372,7 @@ def prepro_for_zhang(dataname, split, seed, args):
 
 def main_for_crossfit(args, tasks):
     k = args.k
-    datasets = load_datasets(os.path.join(args.data_dir, "CrossFitDatasets"), tasks)
+    datasets = load_datasets(os.path.join(args.data_dir, "CrossFitDatasets"), tasks, k=k)
 
     for seed in args.seed:
         for task, dataset in datasets.items():
@@ -380,38 +389,55 @@ def main_for_crossfit(args, tasks):
                 template_dir = os.path.join(setting_dir, "{}".format(template_idx))
                 os.makedirs(template_dir, exist_ok=True)
 
-                # Write test splits
-                with open(os.path.join(template_dir, "test.tsv"), "w") as f:
-                    for line in dataset["test"][template_idx]:
-                        f.write(line)
-
-                # Shuffle the training set
-                train_lines = dataset['train'][template_idx]
-                np.random.shuffle(train_lines)
-
-                # Get label list for balanced sampling
-                label_list = {}
-                for line in train_lines:
-                    label = get_label(task, line)
-                    if not args.balance:
-                        label = "all"
-                    if label not in label_list:
-                        label_list[label] = [line]
-                    else:
-                        label_list[label].append(line)
-                n_classes = 1 #if args.balance else len(label_set)
-
-                # Write the training split
-                with open(os.path.join(template_dir, "train.tsv"), "w") as f:
-                    for label in label_list:
-                        for line in label_list[label][:k*n_classes]:
+                if k != 16384:
+                    # Write test splits
+                    with open(os.path.join(template_dir, "dev.tsv"), "w") as f:
+                        for line in dataset["dev"][template_idx]:
                             f.write(line)
-                
-                # Write the development split
-                with open(os.path.join(template_dir, "dev.tsv"), "w") as f:
-                    for label in label_list:
-                        dev_rate = 11 if '10x' in args.mode else 2
-                        for line in label_list[label][k:k*dev_rate]:
+
+                    # Shuffle the training set
+                    train_lines = dataset['train'][template_idx]
+                    np.random.shuffle(train_lines)
+
+                    # Get label list for balanced sampling
+                    label_list = {}
+                    for line in train_lines:
+                        label = get_label(task, line)
+                        if not args.balance:
+                            label = "all"
+                        if label not in label_list:
+                            label_list[label] = [line]
+                        else:
+                            label_list[label].append(line)
+                    n_classes = 1 #if args.balance else len(label_set)
+
+                    # Write the training split
+                    with open(os.path.join(template_dir, "train.tsv"), "w") as f:
+                        for label in label_list:
+                            for line in label_list[label][:k*n_classes]:
+                                f.write(line)
+                    
+                    # Write the development split
+                    with open(os.path.join(template_dir, "dev.tsv"), "w") as f:
+                        for label in label_list:
+                            dev_rate = 11 if '10x' in args.mode else 2
+                            for line in label_list[label][k:k*dev_rate]:
+                                f.write(line)
+
+                else:
+                    # Write test splits
+                    with open(os.path.join(template_dir, "test.tsv"), "w") as f:
+                        for line in dataset["test"][template_idx]:
+                            f.write(line)
+
+                    # Write the training split
+                    with open(os.path.join(template_dir, "train.tsv"), "w") as f:
+                        for line in dataset["train"][template_idx]:
+                            f.write(line)
+
+                    # Write the training split
+                    with open(os.path.join(template_dir, "dev.tsv"), "w") as f:
+                        for line in dataset["dev"][template_idx]:
                             f.write(line)
 
             if seed==args.seed[-1]:
