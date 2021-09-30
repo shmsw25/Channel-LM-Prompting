@@ -60,7 +60,8 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                 labels=batch[4].cuda()
 
             with torch.cuda.amp.autocast():
-                loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes, labels=labels, priors=model.module.lm_head.priors)
+                loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes, labels=labels, 
+                                 priors=model.module.lm_head.priors if prior_tune else None)
                 loss = loss.mean()
 
             if torch.isnan(loss).data:
@@ -131,7 +132,8 @@ def inference(model, inputs, batch_size, return_logits=False):
 
         with torch.no_grad():
             loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes,
-                             labels=labels, return_logits=return_logits, priors=model.lm_head.priors)
+                             labels=labels, return_logits=return_logits, 
+                             priors=model.lm_head.priors if hasattr(model.lm_head, 'priors') else None)
 
         all_losses += loss.cpu().detach().numpy().tolist()
 
@@ -153,17 +155,17 @@ def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
     label_mask = token_type_ids[..., 1:].contiguous()
 
     prior_values = 0
-    if classes is not None:
+    if priors is not None:
         class_matrix = torch.zeros(len(classes), len(priors)).cuda()
         for i in range(len(classes)):
             class_matrix[i][classes[i]] = 1
         prior_softmax = torch.nn.Softmax(dim=0)(priors)
-        prior_values = class_matrix @ prior_softmax
+        prior_values = torch.log(class_matrix @ prior_softmax)
 
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
     losses = losses.view(logits.size(0), logits.size(1)) * label_mask
-    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + torch.log(prior_values)
+    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + prior_values
 

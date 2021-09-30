@@ -455,6 +455,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         logger.info(acc)
         logger.info(f1)
         return acc, f1
+    return None, None
 
 def evaluate(dev_data, label_losses, is_classification=True):
     if type(label_losses)==list:
