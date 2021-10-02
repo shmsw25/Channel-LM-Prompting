@@ -154,16 +154,13 @@ def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
     labels = labels[..., 1:].contiguous()
     label_mask = token_type_ids[..., 1:].contiguous()
 
+
+    loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+
     prior_values = 0
     if (hasattr(model.lm_head, 'priors') if local_rank<0 else hasattr(model.module.lm_head, 'priors')):
         priors = model.lm_head.priors if local_rank<0 else model.module.lm_head.priors
-        class_matrix = torch.zeros(len(classes), len(priors)).cuda()
-        for i in range(len(classes)):
-            class_matrix[i][classes[i]] = 1
-        prior_softmax = torch.nn.Softmax(dim=0)(priors)
-        prior_values = - torch.log(class_matrix @ prior_softmax)
-
-    loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+        prior_values = loss_fct(priors.expand(len(classes), len(priors)), classes)
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
