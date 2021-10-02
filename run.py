@@ -160,7 +160,7 @@ def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
         for i in range(len(classes)):
             class_matrix[i][classes[i]] = 1
         prior_softmax = torch.nn.Softmax(dim=0)(priors)
-        prior_values = torch.log(class_matrix @ prior_softmax)
+        prior_values = - torch.log(class_matrix @ prior_softmax)
 
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
 
