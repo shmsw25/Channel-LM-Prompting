@@ -84,7 +84,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
 
             if global_step % eval_period == 0 and local_rank == 0:
                 if prior_tune:
-                    keys = ["lm_head.priors"]
+                    keys = ["lm_head.priors", "lm_head.gamma"]
                     if prompt_tune:
                         keys.append("transformer.wte.new_embed.weight")
                     model_state_dict = {key: model.state_dict()[key if local_rank<0 else "module."+key].cpu() for key in keys}
@@ -160,7 +160,8 @@ def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
     prior_values = 0
     if (hasattr(model.lm_head, 'priors') if local_rank<0 else hasattr(model.module.lm_head, 'priors')):
         priors = model.lm_head.priors if local_rank<0 else model.module.lm_head.priors
-        prior_values = loss_fct(priors.expand(len(classes), len(priors)), classes)
+        gamma = model.lm_head.gamma if local_rank<0 else model.module.lm_head.gamma
+        prior_values = torch.abs(gamma) * loss_fct(priors.expand(len(classes), len(priors)), classes)
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]

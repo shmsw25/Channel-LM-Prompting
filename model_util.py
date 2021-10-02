@@ -33,10 +33,11 @@ def load_checkpoint(gpt2, checkpoint=None,
     if checkpoint is not None:
         assert os.path.exists(checkpoint)
         if prior_tune:
-            weight = torch.load(checkpoint)["lm_head.priors"]
-            set_prior(model, n_classes=n_classes)
+            weight1 = torch.load(checkpoint)["lm_head.priors"]
+            weight2 = torch.load(checkpoint)["lm_head.gamma"]
+            set_prior(model, n_classes=n_classes, gamma=1.0)
             model.lm_head._load_from_state_dict(
-                {"priors": weight}, "", None, True, [], [], "")
+                {"priors": weight1, "gamma": weight2}, "", None, True, [], [], "")
             if prompt_tune:
                 set_extra_embeddings(model, n_prefix=n_prefix)
                 weight = torch.load(checkpoint)["transformer.wte.new_embed.weight"]
@@ -208,5 +209,6 @@ def set_transformed_lm_head(model):
     model.set_output_embeddings(
         MyLMHeadWithTransform(model.lm_head))
 
-def set_prior(model, n_classes):
-    model.lm_head.priors = torch.nn.Parameter(torch.tensor([0.5] * n_classes))
+def set_prior(model, n_classes, gamma):
+    model.lm_head.priors = torch.nn.Parameter(torch.zeros(n_classes))
+    model.lm_head.gamma = torch.nn.Parameter(torch.tensor(gamma))

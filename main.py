@@ -141,7 +141,7 @@ def main(logger, args):
                   tokenizer, model, train_data, dev_data,
                   batch_size, max_length, args.gpt2,
                   template_idx, args.method,
-                  args.lr, args.warmup_steps, ds_config, local_rank,
+                  args.lr, args.prior_weight, args.warmup_steps, ds_config, local_rank,
                   use_demonstrations=args.use_demonstrations,
                   use_calibration=args.use_calibration,
                   ensemble=args.ensemble,
@@ -167,7 +167,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         out_dir, split, tokenizer, model,
         train_data, dev_data,
         batch_size, max_length, gpt2, template_idx, method_type,
-        learning_rate, warmup_steps, ds_config, local_rank,
+        learning_rate, prior_weight, warmup_steps, ds_config, local_rank,
         use_demonstrations=False,
         use_calibration=False,
         ensemble=False,
@@ -279,9 +279,14 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
             model = GPT2LMHeadModel.from_pretrained(gpt2)
 
             if prior_tune:
-                set_prior(model, n_classes)
                 for param in model.parameters():
                     param.requires_grad = False
+                if prior_weight < 0:
+                    set_prior(model, n_classes, 1.0)
+                    model.lm_head.gamma.requires_grad = True
+                else:
+                    set_prior(model, n_classes, prior_weight)
+                    model.lm_head.gamma.requires_grad = False
                 model.lm_head.priors.requires_grad = True 
                 if prompt_tune:
                     set_extra_embeddings(model, n_prefix)
@@ -422,7 +427,8 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
                 # For debugging
                 if prior_tune:
-                    logger.info("The oracle prior's value are: {}".format(model.lm_head.priors.tolist()))
+                    logger.info("The prior's value are: {}".format(model.lm_head.priors.tolist()))
+                    logger.info("The weight for priors is: {}".format(model.lm_head.gamma.item()))
 
                 model = model.cuda()
                 model.eval()
@@ -514,6 +520,7 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=str, default="100")
     parser.add_argument("--train_seed", type=int, default=1)
     parser.add_argument("--lr", type=float, default=1e-5)
+    parser.add_argument("--prior_weight", type=float, default=1.0)
     parser.add_argument("--warmup_steps", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=32)
 
