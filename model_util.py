@@ -187,17 +187,6 @@ class MyLMHeadWithTransform(torch.nn.Module):
         return self.lm_head(self.transform(input))
 
 
-class OraclePrior(torch.nn.Module):
-
-    def __init__(self, lm_head, n_classes):
-        super().__init__()
-        self.lm_head = lm_head
-        self.priors = torch.nn.Parameter(torch.tensor([0.5] * n_classes))
-
-    def forward(self, input):
-        return self.lm_head(input)
-
-
 def set_extra_embeddings(model, n_prefix):
     model.transformer.set_input_embeddings(
         MyEmbedding(model.transformer.wte, n_prefix))
@@ -215,5 +204,4 @@ def set_transformed_lm_head(model):
         MyLMHeadWithTransform(model.lm_head))
 
 def set_prior(model, n_classes):
-    model.set_output_embeddings(
-        OraclePrior(model.lm_head, n_classes))
+    model.lm_head.priors = torch.nn.Parameter(torch.tensor([0.5] * n_classes))
