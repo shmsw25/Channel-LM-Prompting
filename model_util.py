@@ -32,7 +32,18 @@ def load_checkpoint(gpt2, checkpoint=None,
 
     if checkpoint is not None:
         assert os.path.exists(checkpoint)
-        if prompt_tune:
+        if prior_tune:
+            weight = torch.load(checkpoint)["lm_head.priors"]
+            set_prior(model, n_classes=n_classes)
+            model.lm_head._load_from_state_dict(
+                {"priors": weight}, "", None, True, [], [], "")
+            if prompt_tune:
+                set_extra_embeddings(model, n_prefix=n_prefix)
+                weight = torch.load(checkpoint)["transformer.wte.new_embed.weight"]
+                model.transformer.wte.new_embed._load_from_state_dict(
+                    {"weight": weight}, "", None, True, [], [], "")
+
+        elif prompt_tune:
             set_extra_embeddings(model, n_prefix=n_prefix)
             weight = torch.load(checkpoint)["transformer.wte.new_embed.weight"]
             model.transformer.wte.new_embed._load_from_state_dict(
@@ -49,12 +60,6 @@ def load_checkpoint(gpt2, checkpoint=None,
             set_transformed_lm_head(model)
             model.lm_head.transform._load_from_state_dict(
                 {"weight": weight}, "", None, True, [], [], "")
-
-        elif prior_tune:
-            weight = torch.load(checkpoint)["lm_head.priors"]
-            set_prior(model, n_classes=n_classes)
-            model.lm_head._load_from_state_dict(
-                {"priors": weight}, "", None, True, [], [], "")
 
         else:
             raise NotImplementedError()

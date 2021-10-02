@@ -42,7 +42,7 @@ def load_data(data_dir, task, k, seed, split, template_idx=None):
 def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_example,
                  n_classes=2, templates=None, method_type="generative",
                  is_training=False, use_demonstrations=False,
-                 ensemble=False, is_null=False, oracle_prior=False):
+                 ensemble=False, is_null=False):
 
     if type(templates)==list:
         transform = None

@@ -168,7 +168,9 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
     model_name = gpt2
 
     if not do_zeroshot:
-        if prompt_tune:
+        if prior_tune:
+            model_name += "-prior-ft" if not prompt_tune else "-prior_prompt-ft"
+        elif prompt_tune:
             model_name += "-prompt-ft"
             if n_prefix!=20:
                 model_name += "-{}".format(n_prefix)
@@ -176,8 +178,6 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
             model_name += "-head-ft"
         elif transform_tune:
             model_name += "-transform-ft"
-        elif prior_tune:
-            model_name += "-prior-ft"
         else:
             model_name += "-all-ft"
 
@@ -242,7 +242,8 @@ def prepend_task_tokens(tokenizer, inputs, n_prefix):
                 inputs["token_type_ids"]], 1),
             labels=torch.cat([
                 torch.zeros((n_train, n_prefix-1), dtype=torch.long),
-                inputs["input_ids"]], 1))
+                inputs["input_ids"]], 1),
+            classes=inputs["classes"])
         return inputs
 
     if type(inputs)==list:

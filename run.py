@@ -83,7 +83,12 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                         scheduler.step()
 
             if global_step % eval_period == 0 and local_rank == 0:
-                if prompt_tune:
+                if prior_tune:
+                    keys = ["lm_head.priors"]
+                    if prompt_tune:
+                        keys.append("transformer.wte.new_embed.weight")
+                    model_state_dict = {key: model.state_dict()[key if local_rank<0 else "module."+key].cpu() for key in keys}
+                elif prompt_tune:
                     keys = ["transformer.wte.new_embed.weight"]
                     model_state_dict = {key: model.state_dict()[key if local_rank<0 else "module."+key].cpu() for key in keys}
                 elif head_tune:
@@ -91,9 +96,6 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                     model_state_dict = {key: model.state_dict()[key if local_rank<0 else "module."+key].cpu() for key in keys}
                 elif transform_tune:
                     keys = ["lm_head.transform.weight"]
-                    model_state_dict = {key: model.state_dict()[key if local_rank<0 else "module."+key].cpu() for key in keys}
-                elif prior_tune:
-                    keys = ["lm_head.priors"]
                     model_state_dict = {key: model.state_dict()[key if local_rank<0 else "module."+key].cpu() for key in keys}
                 else:
                     model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}

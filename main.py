@@ -245,9 +245,9 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         cache_paths = [os.path.join(out_dir, "{}cache-{}-{}.pkl".format(
             task + "-" if train_task != task else "",
             split, step))
-                       for step in range(eval_period, num_training_steps + eval_period, eval_period)]
+                       for step in range(num_training_steps, 0, -eval_period)]
         checkpoints = [os.path.join(out_dir, "model-{}.pt".format(step))
-                       for step in range(eval_period, num_training_steps + eval_period, eval_period)]
+                       for step in range(num_training_steps, 0, -eval_period)]
 
     mapping = None
 
@@ -278,7 +278,16 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
             model = GPT2LMHeadModel.from_pretrained(gpt2)
 
-            if prompt_tune:
+            if prior_tune:
+                set_prior(model, n_classes)
+                for param in model.parameters():
+                    param.requires_grad = False
+                model.lm_head.priors.requires_grad = True 
+                if prompt_tune:
+                    set_extra_embeddings(model, n_prefix)
+                    inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
+
+            elif prompt_tune:
                 for param in model.parameters():
                     param.requires_grad = False
 
@@ -300,12 +309,6 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                     param.requires_grad = False
                 for param in model.lm_head.transform.parameters():
                     param.requires_grad = True
-
-            elif prior_tune:
-                set_prior(model, n_classes)
-                for param in model.parameters():
-                    param.requires_grad = False
-                model.lm_head.priors.requires_grad = True 
 
             model = model.cuda()
 
