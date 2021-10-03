@@ -161,7 +161,7 @@ def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
     if (hasattr(model.lm_head, 'priors') if local_rank<0 else hasattr(model.module.lm_head, 'priors')):
         priors = model.lm_head.priors if local_rank<0 else model.module.lm_head.priors
         gamma = model.lm_head.gamma if local_rank<0 else model.module.lm_head.gamma
-        prior_values = torch.abs(gamma) * loss_fct(priors.expand(len(classes), len(priors)), classes)
+        prior_values = torch.abs(gamma) * loss_fct(priors.expand(len(classes), len(priors)), classes) + 0.01 * torch.norm(priors)
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
