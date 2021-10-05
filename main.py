@@ -141,7 +141,8 @@ def main(logger, args):
                   tokenizer, model, train_data, dev_data,
                   batch_size, max_length, args.gpt2,
                   template_idx, args.method,
-                  args.lr, args.prior_weight, args.warmup_steps, ds_config, local_rank,
+                  args.lr, args.prior_weight, args.regularization_weight,
+                  args.warmup_steps, ds_config, local_rank,
                   use_demonstrations=args.use_demonstrations,
                   use_calibration=args.use_calibration,
                   ensemble=args.ensemble,
@@ -167,7 +168,8 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         out_dir, split, tokenizer, model,
         train_data, dev_data,
         batch_size, max_length, gpt2, template_idx, method_type,
-        learning_rate, prior_weight, warmup_steps, ds_config, local_rank,
+        learning_rate, prior_weight, regularization_weight,
+        warmup_steps, ds_config, local_rank,
         use_demonstrations=False,
         use_calibration=False,
         ensemble=False,
@@ -329,6 +331,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
             train(logger, model, inputs, batch_size, out_dir, ds_config, max(local_rank, 0),
                   learning_rate=learning_rate,
+                  regularization_weight=regularization_weight,
                   warmup_steps=warmup_steps,
                   eval_period=eval_period,
                   num_training_steps=num_training_steps,
@@ -521,6 +524,7 @@ if __name__ == '__main__':
     parser.add_argument("--train_seed", type=int, default=1)
     parser.add_argument("--lr", type=float, default=1e-5)
     parser.add_argument("--prior_weight", type=float, default=1.0)
+    parser.add_argument("--regularization_weight", type=float, default=0)
     parser.add_argument("--warmup_steps", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=32)
 

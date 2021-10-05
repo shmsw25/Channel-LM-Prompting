@@ -9,6 +9,7 @@ from model_util import get_optimizer_and_scheduler, get_dataloader
 
 def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
           learning_rate=1e-5,
+          regularization_weight=0.0,
           warmup_steps=50,
           num_training_steps=200,
           gradient_accumulation_steps=1,
@@ -60,7 +61,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                 labels=batch[4].cuda()
 
             with torch.cuda.amp.autocast():
-                loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes, labels=labels, local_rank=local_rank)
+                loss = run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight, classes=classes, labels=labels, local_rank=local_rank)
                 loss = loss.mean()
 
             if torch.isnan(loss).data:
@@ -132,16 +133,16 @@ def inference(model, inputs, batch_size, return_logits=False):
             labels=batch[4].cuda()
 
         with torch.no_grad():
-            loss = run_model(model, input_ids, attention_mask, token_type_ids, classes=classes,
-                             labels=labels, return_logits=return_logits, local_rank=-1)
+            loss = run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight=0,
+                             classes=classes, labels=labels, return_logits=return_logits, local_rank=-1)
 
         all_losses += loss.cpu().detach().numpy().tolist()
 
     return all_losses
 
 
-def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
-              labels=None, return_logits=False, local_rank=-1):
+def run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight,
+              classes=None, labels=None, return_logits=False, local_rank=-1):
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     logits = outputs.logits[..., :-1, :].contiguous()
 
@@ -161,7 +162,7 @@ def run_model(model, input_ids, attention_mask, token_type_ids, classes=None,
     if (hasattr(model.lm_head, 'priors') if local_rank<0 else hasattr(model.module.lm_head, 'priors')):
         priors = model.lm_head.priors if local_rank<0 else model.module.lm_head.priors
         gamma = model.lm_head.gamma if local_rank<0 else model.module.lm_head.gamma
-        prior_values = torch.abs(gamma) * loss_fct(priors.expand(len(classes), len(priors)), classes) + 0.01 * torch.norm(priors)
+        prior_values = torch.abs(gamma) * loss_fct(priors.expand(len(classes), len(priors)), classes) + regularization_weight * (torch.linalg.norm(priors) ** 2)
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
