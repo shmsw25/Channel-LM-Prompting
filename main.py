@@ -231,7 +231,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
     else:
         out_dir = get_paths(out_dir, gpt2, method_type, train_task, do_zeroshot,
                             k, seed, train_seed, split, template_idx,
-                            batch_size, learning_rate, warmup_steps,
+                            batch_size, learning_rate, regularization_weight, warmup_steps,
                             use_demonstrations=use_demonstrations,
                             ensemble=ensemble,
                             prompt_tune=prompt_tune,
