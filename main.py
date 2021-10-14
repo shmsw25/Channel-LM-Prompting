@@ -76,6 +76,9 @@ def main(logger, args):
     if args.ensemble:
         assert args.use_demonstrations
 
+    if args.checkpoint_dir is not None:
+        assert args.do_train
+
     if args.do_train or args.use_demonstrations:
         assert args.train_seed > 0
 
@@ -137,7 +140,7 @@ def main(logger, args):
         acc, f1 = run(logger, args.do_train, args.do_zeroshot,
                   args.task, train_task,
                   k, seed, args.train_seed,
-                  args.out_dir, args.split,
+                  args.out_dir, args.checkpoint_dir, args.split,
                   tokenizer, model, train_data, dev_data,
                   batch_size, max_length, args.gpt2,
                   template_idx, args.method,
@@ -165,7 +168,7 @@ def main(logger, args):
 
 def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         train_seed,
-        out_dir, split, tokenizer, model,
+        out_dir, checkpoint_dir, split, tokenizer, model,
         train_data, dev_data,
         batch_size, max_length, gpt2, template_idx, method_type,
         learning_rate, prior_weight, regularization_weight,
@@ -180,6 +183,7 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
         prior_tune=False,
         do_check=False, n_prefix=20,
         deep_speed=False):
+
 
     if local_rank >= 0:
         torch.cuda.set_device(local_rank)
@@ -220,6 +224,12 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
 
         max_length = min(max_length, 1024)
         batch_size = int(mem / max_length)
+
+    if checkpoint_dir is not None:
+        prompt_tuned = prior_tune
+        prior_tuned = prompt_tune
+        prior_tune = True
+        prompt_tune = True
 
     if do_zeroshot:
         cache_paths = [get_paths(out_dir, gpt2, method_type, task, do_zeroshot,
@@ -279,46 +289,88 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
             if deep_speed:
                 dschf = HfDeepSpeedConfig(ds_config)
 
-            model = GPT2LMHeadModel.from_pretrained(gpt2)
-
-            if prior_tune:
-                for param in model.parameters():
-                    param.requires_grad = False
-                if prior_weight < 0:
-                    set_prior(model, n_classes, 1.0)
-                    model.lm_head.gamma.requires_grad = True
+            if checkpoint_dir is not None:
+                if not os.path.exists(checkpoint_dir):
+                    logger.info("checkpoint %s not found..." % checkpoint_dir)
+                    assert False
                 else:
-                    set_prior(model, n_classes, prior_weight)
-                    model.lm_head.gamma.requires_grad = False
-                model.lm_head.priors.requires_grad = True 
-                if prompt_tune:
+                    logger.info("Loading the checkpoint")
+                    torch.cuda.empty_cache()
+                    del model
+                    model = load_checkpoint(gpt2, checkpoint_dir,
+                                            prompt_tune=prompt_tuned,
+                                            head_tune=head_tune,
+                                            transform_tune=transform_tune,
+                                            prior_tune=prior_tuned,
+                                            n_prefix=n_prefix,
+                                            mapping=mapping,
+                                            n_classes=n_classes)
+
+                    if prompt_tuned:
+                        for param in model.parameters():
+                            param.requires_grad = False
+                        if prior_weight < 0:
+                            set_prior(model, n_classes, 1.0)
+                            model.lm_head.gamma.requires_grad = True
+                        else:
+                            set_prior(model, n_classes, prior_weight)
+                            model.lm_head.gamma.requires_grad = False
+                        model.lm_head.priors.requires_grad = True 
+                    elif prior_tuned:
+                        for param in model.parameters():
+                            param.requires_grad = False
+
+                        set_extra_embeddings(model, n_prefix)
+                        inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
+
+                    # For debugging
+                    if prior_tune:
+                        logger.info("The prior's value are: {}".format(model.lm_head.priors.tolist()))
+                        logger.info("The weight for priors is: {}".format(model.lm_head.gamma.item()))
+
+                    model = model.cuda()
+                    logger.info("Finished loading the checkpoint")
+            else:
+                model = GPT2LMHeadModel.from_pretrained(gpt2)
+
+                if prior_tune:
+                    for param in model.parameters():
+                        param.requires_grad = False
+                    if prior_weight < 0:
+                        set_prior(model, n_classes, 1.0)
+                        model.lm_head.gamma.requires_grad = True
+                    else:
+                        set_prior(model, n_classes, prior_weight)
+                        model.lm_head.gamma.requires_grad = False
+                    model.lm_head.priors.requires_grad = True 
+                    if prompt_tune:
+                        set_extra_embeddings(model, n_prefix)
+                        inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
+
+                elif prompt_tune:
+                    for param in model.parameters():
+                        param.requires_grad = False
+
                     set_extra_embeddings(model, n_prefix)
                     inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
 
-            elif prompt_tune:
-                for param in model.parameters():
-                    param.requires_grad = False
+                elif head_tune:
+                    mapping, inputs = reassign_output_tokens(inputs, for_labels=True)
+                    logger.info("Created mapping with {} vocabs".format(len(mapping)))
+                    set_separate_lm_head(model, mapping)
+                    for param in model.parameters():
+                        param.requires_grad = False
+                    for param in model.lm_head.my_lm_head.parameters():
+                        param.requires_grad = True
 
-                set_extra_embeddings(model, n_prefix)
-                inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
+                elif transform_tune:
+                    set_transformed_lm_head(model)
+                    for param in model.parameters():
+                        param.requires_grad = False
+                    for param in model.lm_head.transform.parameters():
+                        param.requires_grad = True
 
-            elif head_tune:
-                mapping, inputs = reassign_output_tokens(inputs, for_labels=True)
-                logger.info("Created mapping with {} vocabs".format(len(mapping)))
-                set_separate_lm_head(model, mapping)
-                for param in model.parameters():
-                    param.requires_grad = False
-                for param in model.lm_head.my_lm_head.parameters():
-                    param.requires_grad = True
-
-            elif transform_tune:
-                set_transformed_lm_head(model)
-                for param in model.parameters():
-                    param.requires_grad = False
-                for param in model.lm_head.transform.parameters():
-                    param.requires_grad = True
-
-            model = model.cuda()
+                model = model.cuda()
 
             # if torch.cuda.device_count() > 1 and not deep_speed:
             #     model = torch.nn.DataParallel(model) 
@@ -531,6 +583,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--data_dir", type=str, default="data")
     parser.add_argument("--out_dir", type=str, default="out")
+    parser.add_argument("--checkpoint_dir", type=str, default=None)
 
     parser.add_argument("--split", type=str, default=None)
     parser.add_argument("--method", type=str, default="direct")
