@@ -96,8 +96,14 @@ def get_prompts(task, idx):
     elif task in ['climate_fever', 'ethos-national_origin', 'ethos-race', 
                    'ethos-religion', 'financial_phrasebank', 'hate_speech18',
                    'medical_questions_pairs', 'poem_sentiment', 'superglue-cb',
-                   'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']:
+                   'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist',
+                   'anli', 'glue-mnli', 'glue-qnli', 'glue-rte', 'glue-wnli', 'scitail', 'sick']:
         templates = [entry[1] for entry in TEMPLATES[task]]
+    elif task in ['ai2_arc', 'codah', 'commonsense_qa', 'cosmos_qa', 'dream', 'hellaswag', 
+               'openbookqa', 'qasc', 'quail', 'quarel', 'quartz-no_knowledge', 
+               'quartz-with_knowledge', 'race-high', 'race-middle', 'sciq', 'social_i_qa', 
+               'superglue-copa', 'swag', 'wino_grande', 'wiqa']:
+        return None
     else:
         raise NotImplementedError(task)
 
@@ -146,7 +152,8 @@ def get_prompts(task, idx):
     elif task in ['climate_fever', 'ethos-national_origin', 'ethos-race', 
                   'ethos-religion', 'financial_phrasebank', 'hate_speech18',
                   'medical_questions_pairs', 'poem_sentiment', 'superglue-cb',
-                  'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']:
+                  'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist',
+                  'anli', 'glue-mnli', 'glue-qnli', 'glue-rte', 'glue-wnli', 'scitail', 'sick']:
         label_words = TEMPLATES[task][idx][2]
     else:
         raise NotImplementedError(task)

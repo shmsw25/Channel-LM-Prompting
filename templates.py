@@ -83,4 +83,111 @@ TEMPLATES = {
         ("%s\\n\\nWhat's the best answer to this question: does it favor feminist?\\n\\n", "%s. ", ["maybe", "no", "yes"]),
         ("Text: %s\\n\\nQuestion: Does it favor feminist?\\n\\n", "%s. ", ["maybe", "no", "yes"])
     ],
+
+    'anli': [
+        ("Based on that %s, we conclude that %s", "This is %s. ", ["correct", "unclear", "incorrect"]),
+        ("%s\\n\\nBased on the paragraph above can we conclude that \"%s\"?\\n\\n", "%s. ", ["yes", "maybe",  "no"]),
+        ("%s\\n\\nBased on that paragraph can we conclude that this sentence is true?\\n%s\\n\\n", "%s. ", ["yes", "maybe", "no"]),
+        ("%s\\n\\nCan we draw the following conclusion?\\n%s\\n\\n", "%s. ", ["yes", "maybe", "no"]),
+        ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "maybe", "no"])
+    ],
+    'glue-mnli': [
+        ("Based on that %s, we conclude that %s", "This is %s. ", ["correct", "incorrect", "unclear"]),
+        ("%s\\n\\nBased on the paragraph above can we conclude that \"%s\"?\\n\\n", "%s. ", ["yes", "no", "maybe"]),
+        ("%s\\n\\nBased on that paragraph can we conclude that this sentence is true?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"]),
+        ("%s\\n\\nCan we draw the following conclusion?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"]),
+        ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"])
+    ], 
+    'glue-qnli': [
+        ("Given the question that %s, the answer is %s", "They are %s. ", ["related", "unrelated"]),
+    ],
+    'glue-rte': [
+        ("Based on that %s, we conclude that %s", "This is %s. ", ["correct", "incorrect"]),
+        ("%s\\n\\nBased on the paragraph above can we conclude that \"%s\"?\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nBased on that paragraph can we conclude that this sentence is true?\\n%s\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nCan we draw the following conclusion?\\n%s\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "no"])
+    ],
+    'glue-wnli': [
+        ("Based on that %s, we conclude that %s", "This is %s. ", ["correct", "incorrect"]),
+        ("%s\\n\\nBased on the paragraph above can we conclude that \"%s\"?\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nBased on that paragraph can we conclude that this sentence is true?\\n%s\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nCan we draw the following conclusion?\\n%s\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "no"])
+    ],
+    'scitail': [
+        ("Based on that %s, we conclude that %s", "This is %s. ", ["correct", "incorrect"]),
+        ("%s\\n\\nBased on the paragraph above can we conclude that \"%s\"?\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nBased on that paragraph can we conclude that this sentence is true?\\n%s\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nCan we draw the following conclusion?\\n%s\\n\\n", "%s. ", ["yes", "no"]),
+        ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "no"])
+    ],
+    'sick': [
+        ("Based on that %s, we conclude that %s", "This is %s. ", ["correct", "incorrect", "unclear"]),
+        ("%s\\n\\nBased on the paragraph above can we conclude that \"%s\"?\\n\\n", "%s. ", ["yes", "no", "maybe"]),
+        ("%s\\n\\nBased on that paragraph can we conclude that this sentence is true?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"]),
+        ("%s\\n\\nCan we draw the following conclusion?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"]),
+        ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"])
+    ], 
+
+    'ai2_arc': [
+        ("%s", "%s"),
+    ], 
+    'codah': [
+        ("%s", "%s"),
+    ], 
+    'commonsense_qa': [
+        ("%s", "%s"),
+    ], 
+    'cosmos_qa': [
+        ("%s", "%s"),
+    ], 
+    'dream': [
+        ("%s", "%s"),
+    ], 
+    'hellaswag': [
+        ("%s", "%s"),
+    ], 
+    'openbookqa': [
+        ("%s", "%s"),
+    ], 
+    'qasc': [
+        ("%s", "%s"),
+    ], 
+    'quail': [
+        ("%s", "%s"),
+    ], 
+    'quarel': [
+        ("%s", "%s"),
+    ], 
+    'quartz-no_knowledge': [
+        ("%s", "%s"),
+    ], 
+    'quartz-with_knowledge': [
+        ("%s", "%s"),
+    ], 
+    'race-high': [
+        ("%s", "%s"),
+    ], 
+    'race-middle': [
+        ("%s", "%s"),
+    ], 
+    'sciq': [
+        ("%s", "%s"),
+    ], 
+    'social_i_qa': [
+        ("%s", "%s"),
+    ], 
+    'superglue-copa': [
+        ("%s", "%s"),
+    ], 
+    'swag': [
+        ("%s", "%s"),
+    ], 
+    'wino_grande': [
+        ("%s", "%s"),
+    ], 
+    'wiqa': [
+        ("%s", "%s"),
+    ],
 }

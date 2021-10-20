@@ -33,8 +33,8 @@ def load_data(data_dir, task, k, seed, split, template_idx=None):
     else:
         raise NotImplementedError(data_dir)
 
-    # all data should have (input, output) format
-    assert np.all([len(dp)==2 for dp in data])
+    # # all data should have (input, output) format
+    # assert np.all([len(dp)==2 for dp in data])
 
     return data
 
@@ -43,8 +43,18 @@ def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_ex
                  n_classes=2, templates=None, method_type="generative",
                  is_training=False, use_demonstrations=False,
                  ensemble=False, is_null=False):
-
-    if type(templates)==list:
+    is_multiple_choice = False
+    if templates==None:
+        transform = None
+        is_multiple_choice = True
+        templates = []
+        for _, _, choices_string in test_data:
+            choices = choices_string.split("!@#")
+            assert(len(choices)==n_classes)
+            templates += choices
+        test_data = [(sent, label) for sent, label, _ in test_data]
+        train_data = [(sent, label) for sent, label, _ in train_data]
+    elif type(templates)==list:
         transform = None
         assert len(templates)==n_classes
     else:
@@ -114,14 +124,14 @@ def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_ex
         assert not ensemble
 
         input_ids, attention_mask, token_type_ids, classes = [], [], [], []
-        for test_input, dp in zip(test_inputs, test_data):
+        for i, (test_input, dp) in enumerate(zip(test_inputs, test_data)):
             if transform is not None:
                 test_input, test_output = test_input
                 encoded = prepro_sentence_pair_single(
                     test_input, test_output, max_length, bos_token_id, eos_token_id
                 )
             else:
-                prefix = prefixes[int(dp[1])]
+                prefix = prefixes[int(dp[1])] if not is_multiple_choice else prefixes[i * n_classes + int(dp[1])]
                 if method_type=="channel":
                     encoded = prepro_sentence_pair_single(
                         prefix, test_input, max_length, bos_token_id, eos_token_id)
@@ -190,7 +200,23 @@ def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_ex
     input_tensors = []
 
     for i in range(n_classes):
-        if transform is None:
+        if is_multiple_choice:
+            input_ids, attention_mask, token_type_ids = [], [], []
+            for j, test_input in enumerate(test_inputs):
+                prefix = prefixes[j * n_classes + i].copy()
+                if method_type=="channel":
+                    encoded = prepro_sentence_pair_single(
+                        prefix, test_input, max_length, bos_token_id, eos_token_id)
+                elif method_type=="direct":
+                    encoded = prepro_sentence_pair_single(
+                        test_input + prefix[:idx], prefix[idx:], max_length, bos_token_id, eos_token_id)
+                input_ids.append(encoded[0])
+                attention_mask.append(encoded[1])
+                token_type_ids.append(encoded[2])
+            tensor = dict(input_ids=torch.LongTensor(input_ids),
+                          attention_mask=torch.LongTensor(attention_mask),
+                          token_type_ids=torch.LongTensor(token_type_ids))
+        elif transform is None:
             prefix = prefixes[i].copy()
             if method_type=="channel":
                 if use_demonstrations:

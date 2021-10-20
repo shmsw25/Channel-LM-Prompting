@@ -31,7 +31,12 @@ N_LABELS_DICT = {"SST-2": 2, "sst-5": 5, "mr": 2, "cr": 2, "mpqa": 2,
                  'hate_speech18': 2, 'medical_questions_pairs': 2, 
                  'poem_sentiment': 4, 'superglue-cb': 3, 
                  'tweet_eval-hate': 2, 'tweet_eval-stance_atheism': 3, 
-                 'tweet_eval-stance_feminist': 3
+                 'tweet_eval-stance_feminist': 3, 'anli': 3, 
+                 'glue-mnli': 3, 'glue-qnli': 2, 'glue-rte': 2, 
+                 'glue-wnli': 2, 'scitail': 2, 'sick': 3,
+                 'ai2_arc': 4, 'codah': 4, 'commonsense_qa': 5, 
+                 'openbookqa': 4, 'qasc': 8, 'quarel': 2, 'quartz-no_knowledge': 2, 
+                 'quartz-with_knowledge': 2, 'superglue-copa': 2, 'wino_grande': 2
 }
 
 
@@ -53,7 +58,12 @@ def main(logger, args):
                       'ethos-race', 'ethos-religion', 'financial_phrasebank',
                       'hate_speech18', 'medical_questions_pairs', 'poem_sentiment', 
                       'superglue-cb', 'tweet_eval-hate', 'tweet_eval-stance_atheism', 
-                      'tweet_eval-stance_feminist']
+                      'tweet_eval-stance_feminist', 'anli', 'glue-mnli', 'glue-qnli', 
+                      'glue-rte', 'glue-wnli', 'scitail', 'sick', 
+                      'ai2_arc', 'codah', 'commonsense_qa', 'cosmos_qa', 'dream', 'hellaswag', 
+                      'openbookqa', 'qasc', 'quail', 'quarel', 'quartz-no_knowledge', 
+                      'quartz-with_knowledge', 'race-high', 'race-middle', 'sciq', 'social_i_qa', 
+                      'superglue-copa', 'swag', 'wino_grande', 'wiqa']
 
     # datasets where the average input length is long
     long_datasets = ["cr", "subj", "agnews",
@@ -62,7 +72,9 @@ def main(logger, args):
                      'ethos-national_origin', 'ethos-race', 
                      'ethos-religion', 'financial_phrasebank', 'hate_speech18', 
                      'medical_questions_pairs', 'superglue-cb', 
-                     'tweet_eval-hate' ]
+                     'tweet_eval-hate', 'anli', 'glue-mnli', 'glue-qnli', 
+                     'glue-rte', 'glue-wnli', 'scitail', "ai2_arc", "codah", "openbookqa",
+                     'quarel', 'quartz-with_knowledge']
     max_length = 256 if train_task in long_datasets else 128
     batch_size = int(args.batch_size / 2) if train_task in long_datasets else args.batch_size
 
@@ -86,6 +98,9 @@ def main(logger, args):
     k = int(args.k)
     seed = int(args.seed)
     local_rank = int(args.local_rank) if args.local_rank is not None else -1
+
+    if args.use_tau:
+        assert N_LABELS_DICT[args.task] == 2
 
     if args.task in crossfit_datasets:
         train_datas = [load_data(args.data_dir, train_task, k, seed, "train", template_idx=template_idx)
@@ -137,7 +152,7 @@ def main(logger, args):
         if args.task in crossfit_datasets:
             train_data = train_datas[template_idx]
             dev_data = dev_datas[template_idx] if args.split is not None else None
-        acc, f1 = run(logger, args.do_train, args.do_zeroshot,
+        acc, f1 = run(logger, args.do_train, args.do_zeroshot, args.use_tau,
                   args.task, train_task,
                   k, seed, args.train_seed,
                   args.out_dir, args.checkpoint_dir, args.split,
@@ -166,7 +181,7 @@ def main(logger, args):
         logger.info("Micro-F1 = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(f1s), 100*np.min(f1s)))
 
 
-def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
+def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         train_seed,
         out_dir, checkpoint_dir, split, tokenizer, model,
         train_data, dev_data,
@@ -518,14 +533,26 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                     bias_loss = bias_loss.reshape(1, -1)
                 losses[i] = loss - bias_loss
 
-
-        acc, f1 = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)})
+        if task in ['ai2_arc', 'codah', 'commonsense_qa', 'cosmos_qa', 'dream', 'hellaswag', 
+               'openbookqa', 'qasc', 'quail', 'quarel', 'quartz-no_knowledge', 
+               'quartz-with_knowledge', 'race-high', 'race-middle', 'sciq', 'social_i_qa', 
+               'superglue-copa', 'swag', 'wino_grande', 'wiqa']:
+            dev_data = [(sent, label) for sent, label, _ in dev_data]
+        if not use_tau:
+            acc, f1 = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)})
+        else:
+            acc, f1, tau = float('-inf'), float('-inf'), float('-inf')
+            for tau_cur in np.arange(-1.00, 1.00, 0.01):
+                acc_cur, f1_cur = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)}, tau=tau)
+                if f1_cur > f1:
+                    acc, f1, tau = acc_cur, f1_cur, tau_cur
+            logger.info("tau = {}".format(tau))
         logger.info(acc)
         logger.info(f1)
         return acc, f1
     return None, None
 
-def evaluate(dev_data, label_losses, is_classification=True):
+def evaluate(dev_data, label_losses, tau=0, is_classification=True):
     if type(label_losses)==list:
         label_losses = np.array(label_losses)
     accs = []
@@ -533,7 +560,15 @@ def evaluate(dev_data, label_losses, is_classification=True):
     recalls = defaultdict(list)
     for idx, (_, label) in enumerate(dev_data):
         label_loss = {l:np.sum(label_losses[l][idx]) for l in label_losses}
-        prediction = sorted(label_loss.items(), key=lambda x: x[1])[0][0]
+        if False: # math.isclose(tau, 0):
+            prediction = sorted(label_loss.items(), key=lambda x: x[1])[0][0]
+        else:
+            prediction = "0" if np.exp(-label_loss["0"]) - np.exp(-label_loss["1"]) / (np.exp(-label_loss["0"]) + np.exp(-label_loss["1"])) > tau else "1"
+            # print(np.exp(-label_loss["0"]) - np.exp(-label_loss["1"]) / (np.exp(-label_loss["0"]) + np.exp(-label_loss["1"])))
+            # print(np.exp(-label_loss["0"]) - np.exp(-label_loss["1"]) / (np.exp(-label_loss["0"]) + np.exp(-label_loss["1"])) > tau)
+            # print(prediction)
+            # print(label)
+            # print()
         accs.append(prediction==label)
         precisions[prediction].append(prediction==label)
         recalls[label].append(prediction==label)
@@ -561,6 +596,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--use_calibration", default=False, action="store_true")
     parser.add_argument("--use_demonstrations", default=False, action="store_true")
+    parser.add_argument("--use_tau", default=False, action="store_true")
     parser.add_argument("--ensemble", default=False, action="store_true")
     parser.add_argument("--prompt_tune", default=False, action="store_true")
     parser.add_argument("--head_tune", default=False, action="store_true")

@@ -15,11 +15,47 @@ import os
 import csv
 import numpy as np
 import pandas as pd
+import re
 
 from collections import defaultdict
 from pandas import DataFrame
 
 from templates import TEMPLATES
+
+N_LABELS_DICT = {"SST-2": 2, "sst-5": 5, "mr": 2, "cr": 2, "mpqa": 2,
+                 "subj": 2, "trec": 6, "CoLA": 2,
+                 "amazon": 5, "yelp_full": 5, "yelp_binary": 2,
+                 "agnews": 4, "copa": 2, "boolq": 2,
+                 "RTE": 2, "cb": 3,
+                 "yahoo": 10, "dbpedia": 14, 'climate_fever': 4, 
+                 'ethos-national_origin': 2, 'ethos-race': 2,
+                 'ethos-religion': 2, 'financial_phrasebank': 3, 
+                 'hate_speech18': 2, 'medical_questions_pairs': 2, 
+                 'poem_sentiment': 4, 'superglue-cb': 3, 
+                 'tweet_eval-hate': 2, 'tweet_eval-stance_atheism': 3, 
+                 'tweet_eval-stance_feminist': 3, 'anli': 3, 
+                 'glue-mnli': 3, 'glue-qnli': 2, 'glue-rte': 2, 
+                 'glue-wnli': 2, 'scitail': 2, 'sick': 3,
+                 'ai2_arc': 4, 'codah': 4, 'commonsense_qa': 5, 
+                 'openbookqa': 4, 'qasc': 8, 'quarel': 2, 'quartz-no_knowledge': 2, 
+                 'quartz-with_knowledge': 2, 'superglue-copa': 2, 'wino_grande': 2
+}
+
+
+CROSSFIT_DATASETS = ['climate_fever', 'ethos-national_origin', 'ethos-race', 
+                     'ethos-religion', 'financial_phrasebank', 'hate_speech18', 
+                     'medical_questions_pairs', 'poem_sentiment', 'superglue-cb', 
+                     'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist',
+                     'anli', 'glue-mnli', 'glue-qnli', 'glue-rte', 'glue-wnli', 'scitail', 'sick',
+                     'ai2_arc', 'codah', 'commonsense_qa', 'cosmos_qa', 'dream', 'hellaswag', 
+                     'openbookqa', 'qasc', 'quail', 'quarel', 'quartz-no_knowledge', 
+                     'quartz-with_knowledge', 'race-high', 'race-middle', 'sciq', 'social_i_qa', 
+                     'superglue-copa', 'swag', 'wino_grande', 'wiqa']
+
+MC_DATASETS = ['ai2_arc', 'codah', 'commonsense_qa', 'cosmos_qa', 'dream', 'hellaswag', 
+               'openbookqa', 'qasc', 'quail', 'quarel', 'quartz-no_knowledge', 
+               'quartz-with_knowledge', 'race-high', 'race-middle', 'sciq', 'social_i_qa', 
+               'superglue-copa', 'swag', 'wino_grande', 'wiqa']
 
 
 def get_label(task, line):
@@ -48,10 +84,7 @@ def get_label(task, line):
             return line[-1]
         else:
             raise NotImplementedError
-    elif task in ['climate_fever', 'ethos-national_origin', 'ethos-race', 
-                  'ethos-religion', 'financial_phrasebank', 'hate_speech18', 
-                  'medical_questions_pairs', 'poem_sentiment', 'superglue-cb', 
-                  'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']:
+    elif task in CROSSFIT_DATASETS:
         return line[-1]
     else:
         return line[0]
@@ -69,7 +102,15 @@ LABEL_WORDS = {
     'superglue-cb': ["entailment", "contradiction", "neutral"],
     'tweet_eval-hate': ["non-hate", "hate"],
     'tweet_eval-stance_atheism': ["none", "against", "favor"],
-    'tweet_eval-stance_feminist': ["none", "against", "favor"]
+    'tweet_eval-stance_feminist': ["none", "against", "favor"],
+
+    'anli': ["entailment", "neutral", "contradiction"],
+    'glue-mnli': ["entailment", "contradiction", "neutral"], 
+    'glue-qnli': ["entailment", "not_entailment"], 
+    'glue-rte': ["entailment", "not_entailment"],
+    'glue-wnli': ["entailment", "not_entailment"],
+    'scitail': ["entailment", "neutral"], 
+    'sick': ["entailment", "contradiction", "neutral"],
 }
 
 
@@ -78,15 +119,30 @@ def format_sent_label(task, line, template_idx):
     sent = "\t".join(line[:-1])
     label = line[-1]
     
-    if task in ["medical_questions_pairs", "superglue-cb"]:
-        sentences = sent.split('[SEP]')
-        sent_pieces = [sentence[sentence.index(':')+1 : ].strip() for sentence in sentences]
-        sent = TEMPLATES[task][template_idx][0] % (tuple(sent_pieces))
-    else:    
+    if task in MC_DATASETS:
+        sent_pieces = re.split('\([ABCDEFGH]\)', sent)
+        if len(sent_pieces) != N_LABELS_DICT[task]+1:
+            return None
+        sent = sent_pieces[0].strip()
+        choices = [sent_pieces[i].strip() for i in range(1, N_LABELS_DICT[task]+1)]
+        try:
+            label_id = [i for i, piece in enumerate(choices) if piece == label][0]
+        except:
+            return None
+        choices_string = '!@#'.join(choices)
         sent = TEMPLATES[task][template_idx][0] % (sent)
-    label_id = LABEL_WORDS[task].index(label)
 
-    return sent + '\t' + str(label_id) + '\n'
+        return sent + '\t' + str(label_id) + '\t' + choices_string + '\n'
+    else:
+        if task in ["medical_questions_pairs", "superglue-cb", "anli", "glue-mnli", "glue-qnli", "glue-rte", "glue-wnli", "scitail", "sick"]:
+            sentences = sent.split('[SEP]')
+            sent_pieces = [sentence[sentence.index(':')+1 : ].strip() for sentence in sentences]
+            sent = TEMPLATES[task][template_idx][0] % (tuple(sent_pieces))
+        else:    
+            sent = TEMPLATES[task][template_idx][0] % (sent)
+        label_id = LABEL_WORDS[task].index(label)
+
+        return sent + '\t' + str(label_id) + '\n'
 
 
 def load_datasets(data_dir, tasks, k=-1):
@@ -106,10 +162,7 @@ def load_datasets(data_dir, tasks, k=-1):
                     lines = f.readlines()
                 dataset[split] = lines
             datasets[task] = dataset
-        elif task in ['climate_fever', 'ethos-national_origin', 'ethos-race',
-                      'ethos-religion', 'financial_phrasebank', 'hate_speech18', 
-                      'medical_questions_pairs', 'poem_sentiment', 'superglue-cb', 
-                      'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']:
+        elif task in CROSSFIT_DATASETS:
             
             n_templates = 1
 
@@ -126,14 +179,18 @@ def load_datasets(data_dir, tasks, k=-1):
                         with open(filename, "r") as f:
                             for line in f:
                                 for template_idx in range(n_templates):
-                                    lines[template_idx].append(format_sent_label(task, line, template_idx))
+                                    formatted = format_sent_label(task, line, template_idx)
+                                    if formatted != None:
+                                        lines[template_idx].append(formatted)
                     dataset[split] = lines
                 filename = os.path.join(dirname, "{}_16384_100_test.tsv".format(task))
                 lines = [[] for i in range(n_templates)]
                 with open(filename, "r") as f:
                     for line in f:
                         for template_idx in range(n_templates):
-                            lines[template_idx].append(format_sent_label(task, line, template_idx))
+                            formatted = format_sent_label(task, line, template_idx)
+                            if formatted != None:
+                                lines[template_idx].append(formatted)
                 dataset["test"] = lines
             else:
                 splits = ["train", "dev", "test"]
@@ -143,7 +200,10 @@ def load_datasets(data_dir, tasks, k=-1):
                     with open(filename, "r") as f:
                         for line in f:
                             for template_idx in range(n_templates):
-                                lines[template_idx].append(format_sent_label(task, line, template_idx))
+                                formatted = format_sent_label(task, line, template_idx)
+                                if formatted != None:
+                                    lines[template_idx].append(formatted)
+
                     dataset[split] = lines
             datasets[task] = dataset       
         else:
@@ -179,7 +239,12 @@ def main():
                  'ethos-religion', 'financial_phrasebank', 'hate_speech18',
                  'medical_questions_pairs', 'poem_sentiment',
                  'superglue-cb', 'tweet_eval-hate', 
-                 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist'], #, 'mpqa', 'CoLA', 'MRPC', 'QQP', 'STS-B', 'MNLI', 'SNLI', 'QNLI', 'RTE'],
+                 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist',
+                 'anli', 'glue-mnli', 'glue-qnli', 'glue-rte', 'glue-wnli', 'scitail', 'sick',
+                 'ai2_arc', 'codah', 'commonsense_qa', 'cosmos_qa', 'dream', 'hellaswag', 
+                 'openbookqa', 'qasc', 'quail', 'quarel', 'quartz-no_knowledge', 
+                 'quartz-with_knowledge', 'race-high', 'race-middle', 'sciq', 
+                 'social_i_qa', 'superglue-copa', 'swag', 'wino_grande', 'wiqa'], #, 'mpqa', 'CoLA', 'MRPC', 'QQP', 'STS-B', 'MNLI', 'SNLI', 'QNLI', 'RTE'],
         help="Task names")
     parser.add_argument("--seed", type=int, nargs="+",
         default=[100, 13, 21, 42, 87],
@@ -197,10 +262,7 @@ def main():
     main_for_zhang(args, [task for task in args.task
                           if task in ["agnews", "amazon", "yelp_full", "dbpedia", "yahoo"]])
     main_for_crossfit(args, [task for task in args.task
-                          if task in ['climate_fever', 'ethos-national_origin', 'ethos-race',
-                                      'ethos-religion', 'financial_phrasebank', 'hate_speech18',
-                                      'medical_questions_pairs', 'poem_sentiment', 'superglue-cb',
-                                      'tweet_eval-hate', 'tweet_eval-stance_atheism', 'tweet_eval-stance_feminist']])
+                          if task in CROSSFIT_DATASETS])
 
 def main_for_gao(args, tasks):
     k = args.k
