@@ -131,63 +131,63 @@ TEMPLATES = {
     ], 
 
     'ai2_arc': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'codah': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'commonsense_qa': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'cosmos_qa': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'dream': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'hellaswag': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'openbookqa': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'qasc': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'quail': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'quarel': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'quartz-no_knowledge': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'quartz-with_knowledge': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'race-high': [
-        ("%s", "%s"),
+        ("%s","the answer is:"),
     ], 
     'race-middle': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'sciq': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'social_i_qa': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'superglue-copa': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'swag': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'wino_grande': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ], 
     'wiqa': [
-        ("%s", "%s"),
+        ("%s", "the answer is:"),
     ],
 }

@@ -67,24 +67,44 @@ def load_checkpoint(gpt2, checkpoint=None,
 
     return model
 
-def get_dataloader(inputs, batch_size, is_training):
+def get_dataloader(inputs, batch_size, is_training, prior_inputs=None):
 
-    shape = inputs["input_ids"].shape
+    # shape = inputs["input_ids"].shape
     # for v in inputs.values():
     #     assert v.shape==shape
 
-    if "labels" in inputs:
-        dataset = TensorDataset(inputs["input_ids"],
-                                inputs["attention_mask"],
-                                inputs["token_type_ids"],
-                                inputs["classes"],
-                                inputs["labels"])
+    if prior_inputs == None:
+        if "labels" in inputs:
+            dataset = TensorDataset(inputs["input_ids"],
+                                    inputs["attention_mask"],
+                                    inputs["token_type_ids"],
+                                    inputs["classes"],
+                                    inputs["labels"])
 
+        else:
+            dataset = TensorDataset(inputs["input_ids"],
+                                    inputs["attention_mask"],
+                                    inputs["token_type_ids"],
+                                    inputs["classes"])
     else:
-        dataset = TensorDataset(inputs["input_ids"],
-                                inputs["attention_mask"],
-                                inputs["token_type_ids"],
-                                inputs["classes"])
+        if "labels" in inputs:
+            dataset = TensorDataset(inputs["input_ids"],
+                                    inputs["attention_mask"],
+                                    inputs["token_type_ids"],
+                                    inputs["classes"],
+                                    prior_inputs["input_ids"],
+                                    prior_inputs["attention_mask"],
+                                    prior_inputs["token_type_ids"],
+                                    inputs["labels"])
+
+        else:
+            dataset = TensorDataset(inputs["input_ids"],
+                                    inputs["attention_mask"],
+                                    inputs["token_type_ids"],
+                                    inputs["classes"],
+                                    prior_inputs["input_ids"],
+                                    prior_inputs["attention_mask"],
+                                    prior_inputs["token_type_ids"])
 
     if is_training:
         sampler=RandomSampler(dataset)

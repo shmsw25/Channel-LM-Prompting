@@ -19,6 +19,7 @@ from model_util import load_checkpoint, set_extra_embeddings, \
     set_separate_lm_head, set_separate_embeddings, set_transformed_lm_head, set_prior
 from util import get_prompts, get_paths, flatten_label_losses, \
     prepend_task_tokens, reassign_output_tokens
+from templates import TEMPLATES
 
 N_LABELS_DICT = {"SST-2": 2, "sst-5": 5, "mr": 2, "cr": 2, "mpqa": 2,
                  "subj": 2, "trec": 6, "CoLA": 2,
@@ -279,6 +280,12 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
 
     mapping = None
 
+    mc_datasets = ['ai2_arc', 'codah', 'commonsense_qa', 'cosmos_qa', 'dream', 
+                   'hellaswag', 'openbookqa', 'qasc', 'quail', 'quarel', 'quartz-no_knowledge', 
+                   'quartz-with_knowledge', 'race-high', 'race-middle', 'sciq', 'social_i_qa', 
+                   'superglue-copa', 'swag', 'wino_grande', 'wiqa']
+
+
     if do_train and (head_tune or not do_check):
 
         inputs = prepare_data(
@@ -290,6 +297,20 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
             method_type=method_type,
             is_training=True,
             ensemble=ensemble)
+
+        if task in mc_datasets and prior_tune:
+            prior_train_data = [(TEMPLATES[task][template_idx][1], label, choices) for sent, label, choices in train_data]
+            prior_input_tensors = prepare_data(
+                tokenizer, None, prior_train_data,
+                max_length=max_length,
+                max_length_per_example=max_length_per_example,
+                n_classes=n_classes_train,
+                templates=None,
+                method_type="direct",
+                is_training=True,
+                ensemble=ensemble)
+        else:
+            prior_input_tensors = None
 
         logger.info(out_dir)
 
@@ -316,7 +337,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                                             prompt_tune=prompt_tuned,
                                             head_tune=head_tune,
                                             transform_tune=transform_tune,
-                                            prior_tune=prior_tuned,
+                                            prior_tune=prior_tuned and task not in mc_datasets,
                                             n_prefix=n_prefix,
                                             mapping=mapping,
                                             n_classes=n_classes)
@@ -339,7 +360,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                         inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
 
                     # For debugging
-                    if prior_tune:
+                    if prior_tune and task not in mc_datasets:
                         logger.info("The prior's value are: {}".format(model.lm_head.priors.tolist()))
                         logger.info("The weight for priors is: {}".format(model.lm_head.gamma.item()))
 
@@ -348,7 +369,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
             else:
                 model = GPT2LMHeadModel.from_pretrained(gpt2)
 
-                if prior_tune:
+                if prior_tune and task not in mc_datasets:
                     for param in model.parameters():
                         param.requires_grad = False
                     if prior_weight < 0:
@@ -398,6 +419,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                                                 output_device=local_rank)
 
             train(logger, model, inputs, batch_size, out_dir, ds_config, max(local_rank, 0),
+                  prior_inputs=prior_input_tensors,
                   learning_rate=learning_rate,
                   regularization_weight=regularization_weight,
                   warmup_steps=warmup_steps,
@@ -423,6 +445,19 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         use_demonstrations=use_demonstrations,
         ensemble=ensemble,
         is_null=is_null)
+
+    if task in mc_datasets and prior_tune:
+        prior_dev_data = [(TEMPLATES[task][template_idx][1], label, choices) for sent, label, choices in dev_data]
+        prior_input_tensors = prepare_data(
+            tokenizer, None, prior_dev_data,
+            max_length=max_length,
+            max_length_per_example=max_length_per_example,
+            n_classes=n_classes_train,
+            templates=None,
+            method_type="direct",
+            ensemble=ensemble)
+    else:
+        prior_input_tensors = None
 
     if prompt_tune:
         input_tensors = prepend_task_tokens(tokenizer, input_tensors, n_prefix)
@@ -491,13 +526,13 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                                         prompt_tune=prompt_tune,
                                         head_tune=head_tune,
                                         transform_tune=transform_tune,
-                                        prior_tune=prior_tune,
+                                        prior_tune=prior_tune and task not in mc_datasets,
                                         n_prefix=n_prefix,
                                         mapping=mapping,
                                         n_classes=n_classes)
 
                 # For debugging
-                if prior_tune:
+                if prior_tune and task not in mc_datasets:
                     logger.info("The prior's value are: {}".format(model.lm_head.priors.tolist()))
                     logger.info("The weight for priors is: {}".format(model.lm_head.gamma.item()))
 
@@ -506,10 +541,11 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                 logger.info("Finished loading the model")
 
             losses = []
-            for input_tensor in input_tensors:
+            for i, input_tensor in enumerate(input_tensors):
                 losses.append(inference(model,
                                         input_tensor,
-                                        batch_size))
+                                        batch_size,
+                                        prior_inputs=prior_input_tensors[i]))
 
             with open(cache_path, "wb") as f:
                 pkl.dump(losses, f)
@@ -533,17 +569,14 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                     bias_loss = bias_loss.reshape(1, -1)
                 losses[i] = loss - bias_loss
 
-        if task in ['ai2_arc', 'codah', 'commonsense_qa', 'cosmos_qa', 'dream', 'hellaswag', 
-               'openbookqa', 'qasc', 'quail', 'quarel', 'quartz-no_knowledge', 
-               'quartz-with_knowledge', 'race-high', 'race-middle', 'sciq', 'social_i_qa', 
-               'superglue-copa', 'swag', 'wino_grande', 'wiqa']:
+        if task in mc_datasets:
             dev_data = [(sent, label) for sent, label, _ in dev_data]
         if not use_tau:
             acc, f1 = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)})
         else:
             acc, f1, tau = float('-inf'), float('-inf'), float('-inf')
-            for tau_cur in np.arange(-1.00, 1.00, 0.01):
-                acc_cur, f1_cur = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)}, tau=tau)
+            for tau_cur in np.arange(-1.000, 1.000, 0.001):
+                acc_cur, f1_cur = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)}, tau=tau_cur)
                 if f1_cur > f1:
                     acc, f1, tau = acc_cur, f1_cur, tau_cur
             logger.info("tau = {}".format(tau))
@@ -560,15 +593,10 @@ def evaluate(dev_data, label_losses, tau=0, is_classification=True):
     recalls = defaultdict(list)
     for idx, (_, label) in enumerate(dev_data):
         label_loss = {l:np.sum(label_losses[l][idx]) for l in label_losses}
-        if False: # math.isclose(tau, 0):
+        if math.isclose(tau, 0):
             prediction = sorted(label_loss.items(), key=lambda x: x[1])[0][0]
         else:
             prediction = "0" if np.exp(-label_loss["0"]) - np.exp(-label_loss["1"]) / (np.exp(-label_loss["0"]) + np.exp(-label_loss["1"])) > tau else "1"
-            # print(np.exp(-label_loss["0"]) - np.exp(-label_loss["1"]) / (np.exp(-label_loss["0"]) + np.exp(-label_loss["1"])))
-            # print(np.exp(-label_loss["0"]) - np.exp(-label_loss["1"]) / (np.exp(-label_loss["0"]) + np.exp(-label_loss["1"])) > tau)
-            # print(prediction)
-            # print(label)
-            # print()
         accs.append(prediction==label)
         precisions[prediction].append(prediction==label)
         recalls[label].append(prediction==label)

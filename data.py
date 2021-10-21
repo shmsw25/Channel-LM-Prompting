@@ -53,7 +53,8 @@ def prepare_data(tokenizer, train_data, test_data, max_length, max_length_per_ex
             assert(len(choices)==n_classes)
             templates += choices
         test_data = [(sent, label) for sent, label, _ in test_data]
-        train_data = [(sent, label) for sent, label, _ in train_data]
+        if train_data != None:
+            train_data = [(sent, label) for sent, label, _ in train_data]
     elif type(templates)==list:
         transform = None
         assert len(templates)==n_classes

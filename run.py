@@ -8,6 +8,7 @@ from tqdm import tqdm
 from model_util import get_optimizer_and_scheduler, get_dataloader
 
 def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
+          prior_inputs=None,
           learning_rate=1e-5,
           regularization_weight=0.0,
           warmup_steps=50,
@@ -27,7 +28,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
         warmup_steps=warmup_steps,
         num_training_steps=num_training_steps)
     scaler = torch.cuda.amp.GradScaler()
-    dataloader = get_dataloader(inputs, batch_size, is_training=True)
+    dataloader = get_dataloader(inputs, batch_size, is_training=True, prior_inputs=prior_inputs)
 
     n_trainable_params = len([param for param in model.parameters() if param.requires_grad])
     n_gpus = torch.cuda.device_count()
@@ -55,13 +56,26 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
             attention_mask=batch[1].cuda()
             token_type_ids=batch[2].cuda()
             classes=batch[3].cuda()
+            prior_input_ids=None
+            prior_attention_mask=None
+            prior_token_type_ids=None
+
             if len(batch)==4:
                 labels=None
-            else:
+            elif len(batch)==7:
+                labels=None
+                prior_input_ids=batch[4].cuda()
+                prior_attention_mask=batch[5].cuda()
+                prior_token_type_ids=batch[6].cuda()
+            elif len(batch)==5:
                 labels=batch[4].cuda()
+            else:
+                labels=batch[7].cuda()
 
             with torch.cuda.amp.autocast():
-                loss = run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight, classes=classes, labels=labels, local_rank=local_rank)
+                loss = run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight, classes=classes,
+                                 prior_input_ids=prior_input_ids, prior_attention_mask=prior_attention_mask, prior_token_type_ids=prior_token_type_ids,
+                                 labels=labels, local_rank=local_rank)
                 loss = loss.mean()
 
             if torch.isnan(loss).data:
@@ -117,8 +131,8 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
 
     logger.info("Finish training")
 
-def inference(model, inputs, batch_size, return_logits=False):
-    dataloader = get_dataloader(inputs, batch_size, is_training=False)
+def inference(model, inputs, batch_size, prior_inputs=None, return_logits=False):
+    dataloader = get_dataloader(inputs, batch_size, is_training=False, prior_inputs=prior_inputs)
 
     all_losses = []
     for batch in tqdm(dataloader):
@@ -126,15 +140,27 @@ def inference(model, inputs, batch_size, return_logits=False):
         attention_mask=batch[1].cuda()
         token_type_ids=batch[2].cuda()
         classes=batch[3].cuda()
+        prior_input_ids=None
+        prior_attention_mask=None
+        prior_token_type_ids=None
 
         if len(batch)==4:
             labels=None
-        else:
+        elif len(batch)==7:
+            labels=None
+            prior_input_ids=batch[4].cuda()
+            prior_attention_mask=batch[5].cuda()
+            prior_token_type_ids=batch[6].cuda()
+        elif len(batch)==5:
             labels=batch[4].cuda()
+        else:
+            labels=batch[7]
 
         with torch.no_grad():
             loss = run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight=0,
-                             classes=classes, labels=labels, return_logits=return_logits, local_rank=-1)
+                             prior_input_ids=prior_input_ids, prior_attention_mask=prior_attention_mask,
+                             prior_token_type_ids=prior_token_type_ids, classes=classes, labels=labels,
+                             return_logits=return_logits, local_rank=-1)
 
         all_losses += loss.cpu().detach().numpy().tolist()
 
@@ -142,6 +168,7 @@ def inference(model, inputs, batch_size, return_logits=False):
 
 
 def run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight,
+              prior_input_ids=None, prior_attention_mask=None, prior_token_type_ids=None,
               classes=None, labels=None, return_logits=False, local_rank=-1):
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     logits = outputs.logits[..., :-1, :].contiguous()
@@ -163,9 +190,20 @@ def run_model(model, input_ids, attention_mask, token_type_ids, regularization_w
         priors = model.lm_head.priors if local_rank<0 else model.module.lm_head.priors
         gamma = model.lm_head.gamma if local_rank<0 else model.module.lm_head.gamma
         prior_values = torch.abs(gamma) * loss_fct(priors.expand(len(classes), len(priors)), classes) + regularization_weight * (torch.linalg.norm(priors) ** 2)
+    elif prior_input_ids != None:
+        prior_outputs = model(input_ids=prior_input_ids, attention_mask=prior_attention_mask)
+        prior_logits = outputs.logits[..., :-1, :].contiguous()
+
+        prior_labels = prior_input_ids
+        prior_labels = prior_labels[..., 1:].contiguous()
+        prior_label_mask = prior_token_type_ids[..., 1:].contiguous()
+        prior_losses = loss_fct(prior_logits.view(-1, prior_logits.size(-1)),
+                                prior_labels.view(-1))
+        prior_losses = prior_losses.view(prior_logits.size(0), prior_logits.size(1)) * prior_label_mask
+        prior_values = torch.sum(prior_losses, axis=1) / torch.sum(prior_label_mask, axis=1)
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
-    losses = losses.view(logits.size(0), logits.size(1)) * label_mask
+    losses = losses.view(logits.size(0), logits.size(1)) * label_mask 
     return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + prior_values
 
