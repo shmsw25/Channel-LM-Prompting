@@ -500,6 +500,12 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
     logger.info(tokenizer.decode(input_ids[:token_type_ids.index(1)]))
     logger.info("Output:")
     logger.info(tokenizer.decode([_id for _id, _type_id in zip(input_ids, token_type_ids) if _type_id == 1]))
+    input_ids = prior_input_tensors[0]["input_ids"][0].numpy().tolist()
+    token_type_ids = prior_input_tensors[0]["token_type_ids"][0].numpy().tolist()
+    logger.info("Prior input:")
+    logger.info(tokenizer.decode(input_ids[:token_type_ids.index(1)]))
+    logger.info("Prior output:")
+    logger.info(tokenizer.decode([_id for _id, _type_id in zip(input_ids, token_type_ids) if _type_id == 1]))
 
     results = []
     for cache_path, checkpoint in zip(cache_paths, checkpoints):
