@@ -500,12 +500,13 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
     logger.info(tokenizer.decode(input_ids[:token_type_ids.index(1)]))
     logger.info("Output:")
     logger.info(tokenizer.decode([_id for _id, _type_id in zip(input_ids, token_type_ids) if _type_id == 1]))
-    input_ids = prior_input_tensors[0]["input_ids"][0].numpy().tolist()
-    token_type_ids = prior_input_tensors[0]["token_type_ids"][0].numpy().tolist()
-    logger.info("Prior input:")
-    logger.info(tokenizer.decode(input_ids[:token_type_ids.index(1)]))
-    logger.info("Prior output:")
-    logger.info(tokenizer.decode([_id for _id, _type_id in zip(input_ids, token_type_ids) if _type_id == 1]))
+    if prior_tune and task in mc_datasets:
+        input_ids = prior_input_tensors[0]["input_ids"][0].numpy().tolist()
+        token_type_ids = prior_input_tensors[0]["token_type_ids"][0].numpy().tolist()
+        logger.info("Prior input:")
+        logger.info(tokenizer.decode(input_ids[:token_type_ids.index(1)]))
+        logger.info("Prior output:")
+        logger.info(tokenizer.decode([_id for _id, _type_id in zip(input_ids, token_type_ids) if _type_id == 1]))
 
     results = []
     for cache_path, checkpoint in zip(cache_paths, checkpoints):
@@ -583,7 +584,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
             acc, f1, tau = float('-inf'), float('-inf'), float('-inf')
             for tau_cur in np.arange(-1.000, 1.000, 0.001):
                 acc_cur, f1_cur = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)}, tau=tau_cur)
-                if f1_cur > f1:
+                if acc_cur > acc:
                     acc, f1, tau = acc_cur, f1_cur, tau_cur
             logger.info("tau = {}".format(tau))
         logger.info(acc)
@@ -602,7 +603,7 @@ def evaluate(dev_data, label_losses, tau=0, is_classification=True):
         if math.isclose(tau, 0):
             prediction = sorted(label_loss.items(), key=lambda x: x[1])[0][0]
         else:
-            prediction = "0" if np.exp(-label_loss["0"]) - np.exp(-label_loss["1"]) / (np.exp(-label_loss["0"]) + np.exp(-label_loss["1"])) > tau else "1"
+            prediction = "0" if (np.exp(-label_loss["0"]) - np.exp(-label_loss["1"])) / (np.exp(-label_loss["0"]) + np.exp(-label_loss["1"])) > tau else "1"
         accs.append(prediction==label)
         precisions[prediction].append(prediction==label)
         recalls[label].append(prediction==label)
