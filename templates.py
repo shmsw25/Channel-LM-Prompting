@@ -131,63 +131,63 @@ TEMPLATES = {
     ], 
 
     'ai2_arc': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'codah': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'commonsense_qa': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'cosmos_qa': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'dream': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'hellaswag': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'openbookqa': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'qasc': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'quail': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'quarel': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'quartz-no_knowledge': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'quartz-with_knowledge': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'race-high': [
-        ("%s","the answer is:"),
+        ("%s the answer is: ","the answer is:"),
     ], 
     'race-middle': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'sciq': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'social_i_qa': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'superglue-copa': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'swag': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'wino_grande': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ], 
     'wiqa': [
-        ("%s", "the answer is:"),
+        ("%s the answer is: ", "the answer is:"),
     ],
 }

@@ -200,7 +200,6 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         do_check=False, n_prefix=20,
         deep_speed=False):
 
-
     if local_rank >= 0:
         torch.cuda.set_device(local_rank)
 
@@ -552,7 +551,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                 losses.append(inference(model,
                                         input_tensor,
                                         batch_size,
-                                        prior_inputs=prior_input_tensors[i]))
+                                        prior_inputs=prior_input_tensors[i] if prior_input_tensors != None else None))
 
             with open(cache_path, "wb") as f:
                 pkl.dump(losses, f)
@@ -584,7 +583,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
             acc, f1, tau = float('-inf'), float('-inf'), float('-inf')
             for tau_cur in np.arange(-1.000, 1.000, 0.001):
                 acc_cur, f1_cur = evaluate(dev_data, {str(i): loss for i, loss in enumerate(losses)}, tau=tau_cur)
-                if acc_cur > acc:
+                if f1_cur > f1:
                     acc, f1, tau = acc_cur, f1_cur, tau_cur
             logger.info("tau = {}".format(tau))
         logger.info(acc)
