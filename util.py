@@ -165,6 +165,7 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
               k, seed, train_seed, split, template_idx,
               batch_size=None, lr=None, warmup_steps=None,
               regularization_weight=None, prior_weight=None,
+              init_method=None,
               use_demonstrations=False,
               ensemble=False,
               prompt_tune=False,
@@ -216,10 +217,10 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
 
         return os.path.join(base_dir, cache_path+".pkl")
 
-    assert batch_size is not None and lr is not None and warmup_steps is not None and regularization_weight is not None and prior_weight is not None
+    assert batch_size is not None and lr is not None and warmup_steps is not None and regularization_weight is not None and prior_weight is not None and init_method is not None
 
-    out_dir = "BS={}-k={}-t={}-seed={}-tseed={}-lr={}-lambda={}-gamma={}{}".format(
-            batch_size, k, template_idx, seed, train_seed, lr, regularization_weight, prior_weight,
+    out_dir = "BS={}-k={}-t={}-seed={}-tseed={}-lr={}-lambda={}-gamma={}-init={}{}".format(
+            batch_size, k, template_idx, seed, train_seed, lr, regularization_weight, prior_weight, init_method,
             "-wamrup={}".format(warmup_steps) if warmup_steps>0 else "",
     )
 

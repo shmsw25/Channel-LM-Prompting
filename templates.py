@@ -35,14 +35,14 @@ TEMPLATES = {
         ("%s\\nIs the sentiment of this sentence positive, negative, or neutral?\\n", "%s. ", ["positive", "negative", "neutral"])
     ],
     'hate_speech18' : [
-        ("%s", "This is %s to hate speech. ", ["related", "unrelated"]),
+        ("%s", "This is %s to hate speech. ", ["related", "unrelated"], "Determine whether the sentence is related to hate speech. "),
         ("%s\\n\\nIs it hate speech?\\n\\n", "%s. ", ["yes", "no"]),
         ("%s\\n\\nCan we conclude that it is hate speech?\\n\\n", "%s. ", ["yes", "no"]),
         ("%s\\n\\nWhat's the best answer to this question: is it hate speech?\\n\\n", "%s. ", ["yes", "no"]),
         ("Text: %s\\n\\nQuestion: Is it hate speech?\\n\\n", "%s. ", ["yes", "no"])
     ],
     'medical_questions_pairs': [
-        ("%s\\n%s\\n", "These two questions have %s meanings. ", ["similar", "different"]),
+        ("%s\\n%s\\n", "These two questions have %s meanings. ", ["similar", "different"], "Determine whether the following two sentences have the same meaning. "),
         ("%s\\n%s\\nWould you say that these questions are the same?\\n", "%s. ", ["yes", "no"]),
         ("%s\\n%s\\nDo those questions have the same meaning?\\n", "%s. ", ["yes", "no"]),
         ("%s\\n%s\\nAre these two questions inquiring about the same information?\\n", "%s. ", ["yes", "no"]),
@@ -63,7 +63,7 @@ TEMPLATES = {
         ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"])
     ],
     'tweet_eval-hate': [
-        ("%s", "This is %s to hate speech. ", ["unrelated", "related"]),
+        ("%s", "This is %s to hate speech. ", ["unrelated", "related"], "Determine whether the following two sentences have the same meaning. "),
         ("%s\\n\\nIs it hate speech?\\n\\n", "%s. ", ["no", "yes"]),
         ("%s\\n\\nCan we conclude that it is hate speech?\\n\\n", "%s. ", ["no", "yes"]),
         ("%s\\n\\nWhat's the best answer to this question: is it hate speech?\\n\\n", "%s. ", ["no", "yes"]),

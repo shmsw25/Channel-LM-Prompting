@@ -158,7 +158,7 @@ def main(logger, args):
                   k, seed, args.train_seed,
                   args.out_dir, args.checkpoint_dir, args.split,
                   tokenizer, model, train_data, dev_data,
-                  batch_size, max_length, args.gpt2,
+                  batch_size, max_length, args.gpt2, args.init_method,
                   template_idx, args.method,
                   args.lr, args.prior_weight, args.regularization_weight,
                   args.warmup_steps, ds_config, local_rank,
@@ -186,7 +186,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         train_seed,
         out_dir, checkpoint_dir, split, tokenizer, model,
         train_data, dev_data,
-        batch_size, max_length, gpt2, template_idx, method_type,
+        batch_size, max_length, gpt2, init_method, template_idx, method_type,
         learning_rate, prior_weight, regularization_weight,
         warmup_steps, ds_config, local_rank,
         use_demonstrations=False,
@@ -257,7 +257,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         out_dir = get_paths(out_dir, gpt2, method_type, train_task, do_zeroshot,
                             k, seed, train_seed, split, template_idx,
                             batch_size, learning_rate, warmup_steps,
-                            regularization_weight, prior_weight,
+                            regularization_weight, prior_weight, init_method,
                             use_demonstrations=use_demonstrations,
                             ensemble=ensemble,
                             prompt_tune=prompt_tune,
@@ -386,7 +386,16 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                     for param in model.parameters():
                         param.requires_grad = False
 
-                    set_extra_embeddings(model, n_prefix)
+                    if init_method == "manual":
+                        prompt_ids = tokenizer(TEMPLATES[task][0][3])["input_ids"]
+                        if len(prompt_ids) > n_prefix:
+                            prompt_ids = prompt_ids[:n_prefix]
+                        elif len(prompt_ids) < n_prefix:
+                            prompt_ids = [0] * (n_prefix - len(prompt)) + prompt_ids
+                        assert(len(prompt_ids) == n_prefix)
+                        set_extra_embeddings(model, n_prefix, prompt_ids)
+                    else:
+                        set_extra_embeddings(model, n_prefix, init_method)
                     inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
 
                 elif head_tune:
@@ -659,6 +668,7 @@ if __name__ == '__main__':
     parser.add_argument("--method", type=str, default="direct")
     parser.add_argument("--n_prefix", type=int, default=20)
     parser.add_argument("--gpt2", type=str, default="gpt2-large")
+    parser.add_argument("--init_method", type=str, default="vocab")
 
     parser.add_argument("--deep_speed", default=False, action="store_true")
     parser.add_argument("--local_rank", type=str)

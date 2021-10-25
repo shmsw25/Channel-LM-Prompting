@@ -45,7 +45,7 @@ def load_checkpoint(gpt2, checkpoint=None,
                     {"weight": weight}, "", None, True, [], [], "")
 
         elif prompt_tune:
-            set_extra_embeddings(model, n_prefix=n_prefix)
+            set_extra_embeddings(model, n_prefix=n_prefix, init_method="vocab")
             weight = torch.load(checkpoint)["transformer.wte.new_embed.weight"]
             model.transformer.wte.new_embed._load_from_state_dict(
                 {"weight": weight}, "", None, True, [], [], "")
@@ -149,16 +149,22 @@ class MyEmbedding(torch.nn.Module):
 
     # this is for prompt tuning
 
-    def __init__(self, embed, n_prefix):
+    def __init__(self, embed, n_prefix, init_method):
         super().__init__()
         self.embed = embed
         self.new_embed = torch.nn.Embedding(n_prefix, embed.embedding_dim)
 
         # following Lester et al. 2021 in initializing using the top 5000 random vocabs
-        indices = np.random.permutation(range(5000))[:n_prefix]
-        init_weight = self.embed.state_dict()["weight"][indices]
-        self.new_embed._load_from_state_dict({"weight": init_weight},
-                                             "", None, True, [], [], "")
+        if init_method == "vocab":
+            indices = np.random.permutation(range(5000))[:n_prefix]
+            init_weight = self.embed.state_dict()["weight"][indices]
+            self.new_embed._load_from_state_dict({"weight": init_weight},
+                                                "", None, True, [], [], "")
+        elif init_method != "random":
+            indices = init_method
+            init_weight = self.embed.state_dict()["weight"][indices]
+            self.new_embed._load_from_state_dict({"weight": init_weight},
+                                                "", None, True, [], [], "")
 
     def forward(self, input):
         return F.embedding(
@@ -213,9 +219,9 @@ class MyLMHeadWithTransform(torch.nn.Module):
         return self.lm_head(self.transform(input))
 
 
-def set_extra_embeddings(model, n_prefix):
+def set_extra_embeddings(model, n_prefix, init_method):
     model.transformer.set_input_embeddings(
-        MyEmbedding(model.transformer.wte, n_prefix))
+        MyEmbedding(model.transformer.wte, n_prefix, init_method))
 
 def set_separate_lm_head(model, mapping):
     model.set_output_embeddings(

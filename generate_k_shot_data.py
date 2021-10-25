@@ -210,7 +210,7 @@ def load_datasets(data_dir, tasks, k=-1):
             # Other datasets (csv)
             dataset = {}
             dirname = os.path.join(data_dir, task)
-            splits = ["train", "dev", "test"]
+            splits = ["train", "test"]
             for split in splits:
                 filename = os.path.join(dirname, f"{split}.csv")
                 dataset[split] = pd.read_csv(filename, header=None)
@@ -333,25 +333,40 @@ def main_for_gao(args, tasks):
                 with open(os.path.join(setting_dir, "train.tsv"), "w") as f:
                     for line in train_header:
                         f.write(line)
-                    for label in label_list:
-                        for line in label_list[label][:k*n_classes]:
-                            f.write(line)
+                    if k == -1:
+                        for label in label_list:
+                            for line in label_list[label]:
+                                f.write(line)
+                    else:
+                        for label in label_list:
+                            for line in label_list[label][:k*n_classes]:
+                                f.write(line)
                 name = "dev.tsv"
                 if task == 'MNLI':
                     name = "dev_matched.tsv"
                 with open(os.path.join(setting_dir, name), "w") as f:
                     for line in train_header:
                         f.write(line)
-                    for label in label_list:
-                        dev_rate = 11 if '10x' in args.mode else 2
-                        for line in label_list[label][k:k*dev_rate]:
-                            f.write(line)
+                    if k == -1:
+                        for label in label_list:
+                            for line in label_list[label]:
+                                f.write(line)
+                    else:
+                        for label in label_list:
+                            dev_rate = 11 if '10x' in args.mode else 2
+                            for line in label_list[label][k:k*dev_rate]:
+                                f.write(line)
             else:
                 new_train = []
-                for label in label_list:
-                    for line in label_list[label][:k*n_classes]:
-                        new_train.append(line)
-                new_train = DataFrame(new_train)
+                if k == -1:
+                    for label in label_list:
+                        for line in label_list[label]:
+                            new_train.append(line)
+                else:
+                    for label in label_list:
+                        for line in label_list[label][:k*n_classes]:
+                            new_train.append(line)
+                    new_train = DataFrame(new_train)
                 new_train.to_csv(os.path.join(setting_dir, 'train.csv'), header=False, index=False)
 
                 new_dev = []
