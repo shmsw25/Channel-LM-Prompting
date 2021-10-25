@@ -391,7 +391,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                         if len(prompt_ids) > n_prefix:
                             prompt_ids = prompt_ids[:n_prefix]
                         elif len(prompt_ids) < n_prefix:
-                            prompt_ids = [0] * (n_prefix - len(prompt)) + prompt_ids
+                            prompt_ids = [0] * (n_prefix - len(prompt_ids)) + prompt_ids
                         assert(len(prompt_ids) == n_prefix)
                         set_extra_embeddings(model, n_prefix, prompt_ids)
                     else:
