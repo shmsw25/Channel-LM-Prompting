@@ -190,4 +190,7 @@ TEMPLATES = {
     'wiqa': [
         ("%s the answer is: ", "the answer is:"),
     ],
+    'SST-2': [
+        ("%s", "", [], "Detemine the sentiment of the sentence. ")
+    ]
 }

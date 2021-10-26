@@ -169,7 +169,21 @@ def load_datasets(data_dir, tasks, k=-1):
             # CrossFit
             dataset = {}
             dirname = os.path.join(data_dir, task)
-            if k != 16384:
+            if k == -1:
+                splits = ["train", "dev", "test"]
+                for split in splits:
+                    # combine files
+                    lines = [[] for i in range(n_templates)]
+                    for s in [13, 21, 42, 87, 100]:
+                        filename = os.path.join(dirname, "{}_-1_{}_{}.tsv".format(task, s, split))
+                        with open(filename, "r") as f:
+                            for line in f:
+                                for template_idx in range(n_templates):
+                                    formatted = format_sent_label(task, line, template_idx)
+                                    if formatted != None:
+                                        lines[template_idx].append(formatted)
+                    dataset[split] = lines
+            elif k != 16384:
                 splits = ["train", "dev"]
                 for split in splits:
                     # combine files
@@ -334,9 +348,8 @@ def main_for_gao(args, tasks):
                     for line in train_header:
                         f.write(line)
                     if k == -1:
-                        for label in label_list:
-                            for line in label_list[label]:
-                                f.write(line)
+                        for line in train_lines:
+                            f.write(line)
                     else:
                         for label in label_list:
                             for line in label_list[label][:k*n_classes]:
@@ -348,9 +361,8 @@ def main_for_gao(args, tasks):
                     for line in train_header:
                         f.write(line)
                     if k == -1:
-                        for label in label_list:
-                            for line in label_list[label]:
-                                f.write(line)
+                        for line in train_lines:
+                            f.write(line)
                     else:
                         for label in label_list:
                             dev_rate = 11 if '10x' in args.mode else 2
@@ -473,7 +485,7 @@ def main_for_crossfit(args, tasks):
                 template_dir = os.path.join(setting_dir, "{}".format(template_idx))
                 os.makedirs(template_dir, exist_ok=True)
 
-                if k != 16384:
+                if k != 16384 and k != -1:
                     # Write test splits
                     with open(os.path.join(template_dir, "test.tsv"), "w") as f:
                         for line in dataset["test"][template_idx]:

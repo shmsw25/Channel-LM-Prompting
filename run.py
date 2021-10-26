@@ -11,6 +11,8 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
           prior_inputs=None,
           learning_rate=1e-5,
           regularization_weight=0.0,
+          aux_weight=0.0,
+          target_indices=None,
           warmup_steps=50,
           num_training_steps=200,
           gradient_accumulation_steps=1,
@@ -74,6 +76,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
 
             with torch.cuda.amp.autocast():
                 loss = run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight, classes=classes,
+                                 aux_weight=aux_weight, target_indices=target_indices,
                                  prior_input_ids=prior_input_ids, prior_attention_mask=prior_attention_mask, prior_token_type_ids=prior_token_type_ids,
                                  labels=labels, local_rank=local_rank)
                 loss = loss.mean()
@@ -169,7 +172,7 @@ def inference(model, inputs, batch_size, prior_inputs=None, return_logits=False)
 
 def run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight,
               prior_input_ids=None, prior_attention_mask=None, prior_token_type_ids=None,
-              classes=None, labels=None, return_logits=False, local_rank=-1):
+              aux_weight=0.0, target_indices=None, classes=None, labels=None, return_logits=False, local_rank=-1):
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     logits = outputs.logits[..., :-1, :].contiguous()
 
@@ -202,8 +205,18 @@ def run_model(model, input_ids, attention_mask, token_type_ids, regularization_w
         prior_losses = prior_losses.view(prior_logits.size(0), prior_logits.size(1)) * prior_label_mask
         prior_values = torch.sum(prior_losses, axis=1) / torch.sum(prior_label_mask, axis=1)
 
+    aux_loss = 0.0
+    if target_indices != None:
+        layer = model.transformer.wte if local_rank < 0 else model.module.transformer.wte
+        a = layer.embed.state_dict()["weight"][target_indices]
+        b = layer.new_embed.state_dict()["weight"]
+        c = torch.linalg.norm(a-b, dim=(0,1))
+        d = c ** 2
+        aux_loss = aux_weight * d
+        # aux_loss = aux_weight * (torch.linalg.norm(layer.embed.state_dict()["weight"][target_indices] - layer.new_embed.state_dict()["weight"], dim=(0,1)) ** 2)
+
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
     losses = losses.view(logits.size(0), logits.size(1)) * label_mask 
-    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + prior_values
+    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + prior_values + aux_loss
 

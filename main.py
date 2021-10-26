@@ -52,7 +52,7 @@ def main(logger, args):
     else:
         # zero-shot transfer case where the training task is different from the test task
         train_task = args.train_task
-        assert args.do_check
+        # assert args.do_check
 
     # datasets that also formats input sentence
     crossfit_datasets = ['climate_fever', 'ethos-national_origin',
@@ -103,7 +103,7 @@ def main(logger, args):
     if args.use_tau:
         assert N_LABELS_DICT[args.task] == 2
 
-    if args.task in crossfit_datasets:
+    if train_task in crossfit_datasets:
         train_datas = [load_data(args.data_dir, train_task, k, seed, "train", template_idx=template_idx)
                        for template_idx in range(n_templates)] 
     else:
@@ -150,17 +150,18 @@ def main(logger, args):
     accs, f1s = [], []
     # run over different templates
     for template_idx in range(n_templates):
-        if args.task in crossfit_datasets:
+        if train_task in crossfit_datasets:
             train_data = train_datas[template_idx]
+        if args.task in crossfit_datasets:
             dev_data = dev_datas[template_idx] if args.split is not None else None
         acc, f1 = run(logger, args.do_train, args.do_zeroshot, args.use_tau,
                   args.task, train_task,
                   k, seed, args.train_seed,
                   args.out_dir, args.checkpoint_dir, args.split,
                   tokenizer, model, train_data, dev_data,
-                  batch_size, max_length, args.gpt2, args.init_method,
+                  batch_size, max_length, args.gpt2, args.init_method, args.prefix_type,
                   template_idx, args.method,
-                  args.lr, args.prior_weight, args.regularization_weight,
+                  args.lr, args.prior_weight, args.aux_weight, args.regularization_weight,
                   args.warmup_steps, ds_config, local_rank,
                   use_demonstrations=args.use_demonstrations,
                   use_calibration=args.use_calibration,
@@ -186,8 +187,9 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         train_seed,
         out_dir, checkpoint_dir, split, tokenizer, model,
         train_data, dev_data,
-        batch_size, max_length, gpt2, init_method, template_idx, method_type,
-        learning_rate, prior_weight, regularization_weight,
+        batch_size, max_length, gpt2, init_method, prefix_type,
+        template_idx, method_type, learning_rate, 
+        prior_weight, aux_weight, regularization_weight,
         warmup_steps, ds_config, local_rank,
         use_demonstrations=False,
         use_calibration=False,
@@ -212,6 +214,9 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
 
     if head_tune or transform_tune:
         assert method_type == "direct"
+
+    if init_method == "manual":
+        n_prefix = len(tokenizer(TEMPLATES[task][0][3])["input_ids"])
 
     n_classes = N_LABELS_DICT.get(task, None)
     templates = get_prompts(task, template_idx)
@@ -257,7 +262,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         out_dir = get_paths(out_dir, gpt2, method_type, train_task, do_zeroshot,
                             k, seed, train_seed, split, template_idx,
                             batch_size, learning_rate, warmup_steps,
-                            regularization_weight, prior_weight, init_method,
+                            regularization_weight, prior_weight, aux_weight, init_method,
                             use_demonstrations=use_demonstrations,
                             ensemble=ensemble,
                             prompt_tune=prompt_tune,
@@ -267,8 +272,13 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                             n_prefix=n_prefix)
 
         k = int(k)
-        eval_period = 100
-        num_training_steps = 400 if k != 16384 else 1000
+        eval_period = 5
+        if k == 16384:
+            num_training_steps = 1000
+        elif k == -1:
+            num_training_steps = 20
+        else:
+            num_training_steps = 400
 
         cache_paths = [os.path.join(out_dir, "{}cache-{}-{}.pkl".format(
             task + "-" if train_task != task else "",
@@ -297,8 +307,8 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
             is_training=True,
             ensemble=ensemble)
 
-        if task in mc_datasets and prior_tune:
-            prior_train_data = [(TEMPLATES[task][template_idx][1], label, choices) for sent, label, choices in train_data]
+        if train_task in mc_datasets and prior_tune:
+            prior_train_data = [(TEMPLATES[train_task][template_idx][1], label, choices) for sent, label, choices in train_data]
             prior_input_tensors = prepare_data(
                 tokenizer, None, prior_train_data,
                 max_length=max_length,
@@ -336,7 +346,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                                             prompt_tune=prompt_tuned,
                                             head_tune=head_tune,
                                             transform_tune=transform_tune,
-                                            prior_tune=prior_tuned and task not in mc_datasets,
+                                            prior_tune=prior_tuned and train_task not in mc_datasets,
                                             n_prefix=n_prefix,
                                             mapping=mapping,
                                             n_classes=n_classes)
@@ -359,7 +369,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                         inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
 
                     # For debugging
-                    if prior_tune and task not in mc_datasets:
+                    if prior_tune and train_task not in mc_datasets:
                         logger.info("The prior's value are: {}".format(model.lm_head.priors.tolist()))
                         logger.info("The weight for priors is: {}".format(model.lm_head.gamma.item()))
 
@@ -368,7 +378,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
             else:
                 model = GPT2LMHeadModel.from_pretrained(gpt2)
 
-                if prior_tune and task not in mc_datasets:
+                if prior_tune and train_task not in mc_datasets:
                     for param in model.parameters():
                         param.requires_grad = False
                     if prior_weight < 0:
@@ -388,12 +398,8 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
 
                     if init_method == "manual":
                         prompt_ids = tokenizer(TEMPLATES[task][0][3])["input_ids"]
-                        if len(prompt_ids) > n_prefix:
-                            prompt_ids = prompt_ids[:n_prefix]
-                        elif len(prompt_ids) < n_prefix:
-                            prompt_ids = [0] * (n_prefix - len(prompt_ids)) + prompt_ids
-                        assert(len(prompt_ids) == n_prefix)
                         set_extra_embeddings(model, n_prefix, prompt_ids)
+                        logger.info("Using a prompt of size {}".format(len(prompt_ids)))
                     else:
                         set_extra_embeddings(model, n_prefix, init_method)
                     inputs = prepend_task_tokens(tokenizer, inputs, n_prefix)
@@ -430,6 +436,8 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                   prior_inputs=prior_input_tensors,
                   learning_rate=learning_rate,
                   regularization_weight=regularization_weight,
+                  aux_weight=aux_weight,
+                  target_indices=tokenizer(TEMPLATES[task][0][3])["input_ids"] if train_task != task else None,
                   warmup_steps=warmup_steps,
                   eval_period=eval_period,
                   num_training_steps=num_training_steps,
@@ -454,8 +462,8 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         ensemble=ensemble,
         is_null=is_null)
 
-    if task in mc_datasets and prior_tune:
-        prior_dev_data = [(TEMPLATES[task][template_idx][1], label, choices) for sent, label, choices in dev_data]
+    if train_task in mc_datasets and prior_tune:
+        prior_dev_data = [(TEMPLATES[train_task][template_idx][1], label, choices) for sent, label, choices in dev_data]
         prior_input_tensors = prepare_data(
             tokenizer, None, prior_dev_data,
             max_length=max_length,
@@ -545,6 +553,9 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                                         n_prefix=n_prefix,
                                         mapping=mapping,
                                         n_classes=n_classes)
+                
+                if prefix_type == "discrete":
+                    model.transformer.wte.map_to_discrete()
 
                 # For debugging
                 if prior_tune and task not in mc_datasets:
@@ -656,6 +667,7 @@ if __name__ == '__main__':
     parser.add_argument("--train_seed", type=int, default=1)
     parser.add_argument("--lr", type=float, default=1e-5)
     parser.add_argument("--prior_weight", type=float, default=1.0)
+    parser.add_argument("--aux_weight", type=float, default=1.0)
     parser.add_argument("--regularization_weight", type=float, default=0)
     parser.add_argument("--warmup_steps", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=32)
@@ -669,6 +681,7 @@ if __name__ == '__main__':
     parser.add_argument("--n_prefix", type=int, default=20)
     parser.add_argument("--gpt2", type=str, default="gpt2-large")
     parser.add_argument("--init_method", type=str, default="vocab")
+    parser.add_argument("--prefix_type", type=str, default="soft")
 
     parser.add_argument("--deep_speed", default=False, action="store_true")
     parser.add_argument("--local_rank", type=str)

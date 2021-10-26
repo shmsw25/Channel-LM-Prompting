@@ -176,6 +176,16 @@ class MyEmbedding(torch.nn.Module):
             self.embed.scale_grad_by_freq,
             self.embed.sparse)
 
+    def map_to_discrete(self):
+        indices = []
+        for vector in self.new_embed.state_dict()["weight"]:
+            distances = torch.linalg.norm(vector - self.embed.state_dict()["weight"], dim=1)
+            s, i = torch.sort(distances)
+            indices.append(i[0].item())
+        weight = self.embed.state_dict()["weight"][indices]
+        self.new_embed._load_from_state_dict({"weight": weight},
+                                                "", None, True, [], [], "")
+
 class MyEmbedding2(torch.nn.Module):
 
     def __init__(self, embed, mapping):
