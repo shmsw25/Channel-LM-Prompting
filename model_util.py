@@ -178,13 +178,16 @@ class MyEmbedding(torch.nn.Module):
 
     def map_to_discrete(self):
         indices = []
+        aux_loss = 0
         for vector in self.new_embed.state_dict()["weight"]:
             distances = torch.linalg.norm(vector - self.embed.state_dict()["weight"], dim=1)
-            s, i = torch.sort(distances)
+            d, i = torch.sort(distances)
             indices.append(i[0].item())
+            aux_loss += d[0] ** 2
         weight = self.embed.state_dict()["weight"][indices]
         self.new_embed._load_from_state_dict({"weight": weight},
                                                 "", None, True, [], [], "")
+        return indices, aux_loss
 
 class MyEmbedding2(torch.nn.Module):
 

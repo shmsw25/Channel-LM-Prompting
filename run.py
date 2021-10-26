@@ -208,12 +208,7 @@ def run_model(model, input_ids, attention_mask, token_type_ids, regularization_w
     aux_loss = 0.0
     if target_indices != None:
         layer = model.transformer.wte if local_rank < 0 else model.module.transformer.wte
-        a = layer.embed.state_dict()["weight"][target_indices]
-        b = layer.new_embed.state_dict()["weight"]
-        c = torch.linalg.norm(a-b, dim=(0,1))
-        d = c ** 2
-        aux_loss = aux_weight * d
-        # aux_loss = aux_weight * (torch.linalg.norm(layer.embed.state_dict()["weight"][target_indices] - layer.new_embed.state_dict()["weight"], dim=(0,1)) ** 2)
+        aux_loss = aux_weight * (torch.linalg.norm(layer.embed.state_dict()["weight"][target_indices] - layer.new_embed.state_dict()["weight"], dim=(0,1)) ** 2)
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]

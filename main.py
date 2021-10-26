@@ -272,11 +272,11 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                             n_prefix=n_prefix)
 
         k = int(k)
-        eval_period = 5
+        eval_period = 500
         if k == 16384:
             num_training_steps = 1000
         elif k == -1:
-            num_training_steps = 20
+            num_training_steps = 2000
         else:
             num_training_steps = 400
 
@@ -555,7 +555,9 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                                         n_classes=n_classes)
                 
                 if prefix_type == "discrete":
-                    model.transformer.wte.map_to_discrete()
+                    prefix_ids, aux_loss = model.transformer.wte.map_to_discrete()
+                    logger.info("The mapped discrete prefix is: {}".format(tokenizer.convert_ids_to_tokens(prefix_ids)))
+                    logger.info("The auxiliary loss is: {}".format(aux_loss))
 
                 # For debugging
                 if prior_tune and task not in mc_datasets:
