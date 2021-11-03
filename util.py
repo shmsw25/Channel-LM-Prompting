@@ -165,13 +165,14 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
               k, seed, train_seed, split, template_idx,
               batch_size=None, lr=None, warmup_steps=None,
               regularization_weight=None, prior_weight=None,
-              aux_weight=None, init_method=None,
+              aux_weight=None, init_method=None, prompt_task=None,
               use_demonstrations=False,
               ensemble=False,
               prompt_tune=False,
               head_tune=False,
               transform_tune=False,
               prior_tune=False,
+              bad=False,
               n_prefix=20):
 
     model_name = gpt2
@@ -181,7 +182,7 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
             model_name += "-prior-ft" if not prompt_tune else "-prior_prompt-ft"
         elif prompt_tune:
             model_name += "-prompt-ft"
-            if n_prefix!=20:
+            if n_prefix!=20 and init_method != "manual":
                 model_name += "-{}".format(n_prefix)
         elif head_tune:
             model_name += "-head-ft"
@@ -196,6 +197,10 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
                                               "-demon" if use_demonstrations else "",
                                               "-ensemble" if ensemble else ""),
                             task)
+    if prompt_tune:
+        base_dir = os.path.join(base_dir, init_method)
+        if init_method == "manual" and prompt_task != None:
+            base_dir = os.path.join(base_dir, prompt_task)
 
 
     if not os.path.exists(base_dir):
@@ -218,10 +223,10 @@ def get_paths(out_dir, gpt2, method, task, do_zeroshot,
         return os.path.join(base_dir, cache_path+".pkl")
 
     assert batch_size is not None and lr is not None and warmup_steps is not None and regularization_weight is not None \
-           and prior_weight is not None and aux_weight is not None and init_method is not None
+           and prior_weight is not None and aux_weight is not None and bad is not None
 
-    out_dir = "BS={}-k={}-t={}-seed={}-tseed={}-lr={}-lambda={}-gamma={}-gamma2={}-init={}{}".format(
-            batch_size, k, template_idx, seed, train_seed, lr, regularization_weight, prior_weight, aux_weight, init_method,
+    out_dir = "BS={}-k={}-t={}-seed={}-tseed={}-lr={}-lambda={}-gamma={}-gamma2={}-against={}{}".format(
+            batch_size, k, template_idx, seed, train_seed, lr, regularization_weight, prior_weight, aux_weight, bad,
             "-wamrup={}".format(warmup_steps) if warmup_steps>0 else "",
     )
 

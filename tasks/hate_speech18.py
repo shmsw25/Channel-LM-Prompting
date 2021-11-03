@@ -49,7 +49,7 @@ def main():
     dataset = HateSpeech18()
 
     for seed in [100, 13, 21, 42, 87]:
-        train, dev, test = dataset.generate_k_shot_data(k="-1", seed=seed, path="../data/few-shot")
+        train, dev, test = dataset.generate_k_shot_data(k="-1", seed=seed, path="../data/original/CrossFitDatasets")
 
 if __name__ == "__main__":
     main()

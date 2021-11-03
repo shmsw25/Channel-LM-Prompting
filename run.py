@@ -22,6 +22,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
           head_tune=False,
           transform_tune=False,
           prior_tune=False,
+          bad=False,
           deep_speed=False):
     optimizer, scheduler = get_optimizer_and_scheduler(
         "adamw",
@@ -78,7 +79,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                 loss = run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight, classes=classes,
                                  aux_weight=aux_weight, target_indices=target_indices,
                                  prior_input_ids=prior_input_ids, prior_attention_mask=prior_attention_mask, prior_token_type_ids=prior_token_type_ids,
-                                 labels=labels, local_rank=local_rank)
+                                 labels=labels, bad=bad, local_rank=local_rank)
                 loss = loss.mean()
 
             if torch.isnan(loss).data:
@@ -134,7 +135,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
 
     logger.info("Finish training")
 
-def inference(model, inputs, batch_size, prior_inputs=None, return_logits=False):
+def inference(model, inputs, batch_size, prior_inputs=None, return_logits=False, bad=False):
     dataloader = get_dataloader(inputs, batch_size, is_training=False, prior_inputs=prior_inputs)
 
     all_losses = []
@@ -163,7 +164,7 @@ def inference(model, inputs, batch_size, prior_inputs=None, return_logits=False)
             loss = run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight=0,
                              prior_input_ids=prior_input_ids, prior_attention_mask=prior_attention_mask,
                              prior_token_type_ids=prior_token_type_ids, classes=classes, labels=labels,
-                             return_logits=return_logits, local_rank=-1)
+                             return_logits=return_logits, bad=bad, local_rank=-1)
 
         all_losses += loss.cpu().detach().numpy().tolist()
 
@@ -172,7 +173,8 @@ def inference(model, inputs, batch_size, prior_inputs=None, return_logits=False)
 
 def run_model(model, input_ids, attention_mask, token_type_ids, regularization_weight,
               prior_input_ids=None, prior_attention_mask=None, prior_token_type_ids=None,
-              aux_weight=0.0, target_indices=None, classes=None, labels=None, return_logits=False, local_rank=-1):
+              aux_weight=0.0, target_indices=None, classes=None, labels=None, return_logits=False, 
+              bad=False, local_rank=-1):
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     logits = outputs.logits[..., :-1, :].contiguous()
 
@@ -208,10 +210,11 @@ def run_model(model, input_ids, attention_mask, token_type_ids, regularization_w
     aux_loss = 0.0
     if target_indices != None:
         layer = model.transformer.wte if local_rank < 0 else model.module.transformer.wte
-        aux_loss = aux_weight * (torch.linalg.norm(layer.embed.state_dict()["weight"][target_indices] - layer.new_embed.state_dict()["weight"], dim=(0,1)) ** 2)
+        aux_loss = aux_weight * (torch.sum((layer.embed.state_dict()["weight"][target_indices] - layer.new_embed.weight) ** 2))
+        # aux_loss = aux_weight * torch.linalg.norm(layer.embed.state_dict()["weight"][target_indices] - layer.new_embed.weight, ord=1, dim=(0,1))
 
     losses = loss_fct(logits.view(-1, logits.size(-1)),
                       labels.view(-1)) # [batch_size, length]
     losses = losses.view(logits.size(0), logits.size(1)) * label_mask 
-    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) + prior_values + aux_loss
+    return torch.sum(losses, axis=1) / torch.sum(label_mask, axis=1) * (-1 if bad else 1) + prior_values + aux_loss
 

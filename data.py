@@ -320,3 +320,12 @@ def prepare_data_for_parallel(tokenizer, train_data, test_data,
 
     return input_tensors
 
+def load_prompt(prompts_dir, prompt_task):
+    prompt_files = ["channel_prompts", "natural_prompts", "pile"]
+    prompts = {}
+    for prompt_file in prompt_files:
+        with open(os.path.join(prompts_dir, prompt_file+".json"), 'r') as f:
+            prompts.update(json.load(f))
+    if prompt_task not in prompts:
+        raise NotImplementedError()
+    return prompts[prompt_task]

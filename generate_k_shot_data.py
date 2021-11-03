@@ -348,7 +348,7 @@ def main_for_gao(args, tasks):
                     for line in train_header:
                         f.write(line)
                     if k == -1:
-                        for line in train_lines:
+                        for line in train_lines[ : (int)(0.9 * len(train_lines))]:
                             f.write(line)
                     else:
                         for label in label_list:
@@ -361,7 +361,7 @@ def main_for_gao(args, tasks):
                     for line in train_header:
                         f.write(line)
                     if k == -1:
-                        for line in train_lines:
+                        for line in train_lines[(int)(0.9 * len(train_lines)) : ]:
                             f.write(line)
                     else:
                         for label in label_list:
@@ -371,9 +371,9 @@ def main_for_gao(args, tasks):
             else:
                 new_train = []
                 if k == -1:
-                    for label in label_list:
-                        for line in label_list[label]:
-                            new_train.append(line)
+                    for line in train_lines[ : (int)(0.9 * len(train_lines))]:
+                        new_train.append(line)
+                    new_train = DataFrame(new_train)
                 else:
                     for label in label_list:
                         for line in label_list[label][:k*n_classes]:
@@ -382,10 +382,14 @@ def main_for_gao(args, tasks):
                 new_train.to_csv(os.path.join(setting_dir, 'train.csv'), header=False, index=False)
 
                 new_dev = []
-                for label in label_list:
-                    dev_rate = 11 if '10x' in args.mode else 2
-                    for line in label_list[label][k:k*dev_rate]:
+                if k == -1:
+                    for line in train_lines[(int)(0.9 * len(train_lines)) : ]:
                         new_dev.append(line)
+                else:
+                    for label in label_list:
+                        dev_rate = 11 if '10x' in args.mode else 2
+                        for line in label_list[label][k:k*dev_rate]:
+                            new_dev.append(line)
                 new_dev = DataFrame(new_dev)
                 new_dev.to_csv(os.path.join(setting_dir, 'dev.csv'), header=False, index=False)
 
@@ -408,7 +412,7 @@ def main_for_zhang(args, tasks):
         print ("Done for task=%s" % task)
 
 def prepro_for_zhang(dataname, split, seed, args):
-    balance = args.balance
+    balance = args.balance if args.k != -1 else True
     k = args.k
     np.random.seed(seed)
 
@@ -457,6 +461,8 @@ def prepro_for_zhang(dataname, split, seed, args):
         for sents in data.values():
             if split=="test":
                 pass
+            elif k == -1:
+                sents = sents[:(int)(0.9 * len(sents))]
             elif balance:
                 sents = sents[:k]
             else:
@@ -464,6 +470,16 @@ def prepro_for_zhang(dataname, split, seed, args):
             for sent, label in sents:
                 assert "\t" not in sent, sent
                 f.write("%s\t%s\n" % (sent, label))
+    
+    if split=="train":
+        save_path = os.path.join(save_dir, "dev.tsv")
+        with open(save_path, "w") as f:
+            f.write("sentence\tlabel\n")
+            for sents in data.values():
+                sents = sents[(int)(0.9 * len(sents)):]
+                for sent, label in sents:
+                    assert "\t" not in sent, sent
+                    f.write("%s\t%s\n" % (sent, label))
 
 
 def main_for_crossfit(args, tasks):

@@ -13,7 +13,7 @@ from collections import Counter, defaultdict
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 from transformers.deepspeed import HfDeepSpeedConfig
 
-from data import load_data, prepare_data
+from data import load_data, prepare_data, load_prompt
 from run import train, inference
 from model_util import load_checkpoint, set_extra_embeddings, \
     set_separate_lm_head, set_separate_embeddings, set_transformed_lm_head, set_prior
@@ -95,6 +95,13 @@ def main(logger, args):
     if args.do_train or args.use_demonstrations:
         assert args.train_seed > 0
 
+    if args.prompt_task is not None:
+        assert args.prompt_tune and args.init_method == "manual"
+        prompt = load_prompt(args.prompts_dir, args.prompt_task)
+        logger.info("Using prompt: %s" % prompt)
+    else:
+        prompt = None
+
     n_templates = 1
     k = int(args.k)
     seed = int(args.seed)
@@ -147,50 +154,120 @@ def main(logger, args):
     else:
         ds_config = None
 
-    accs, f1s = [], []
-    # run over different templates
-    for template_idx in range(n_templates):
+    if local_rank >= 0 and not args.deep_speed:
+        torch.distributed.init_process_group("nccl", init_method='env://')
+    
+    if not args.robust_eval:
+        accs, f1s = [], []
+        # run over different templates
+        for template_idx in range(n_templates):
+            if train_task in crossfit_datasets:
+                train_data = train_datas[template_idx]
+            if args.task in crossfit_datasets:
+                dev_data = dev_datas[template_idx] if args.split is not None else None
+            acc, f1 = run(logger, args.do_train, args.do_zeroshot, args.use_tau,
+                    args.task, train_task, prompt_task,
+                    k, seed, args.train_seed,
+                    args.out_dir, args.checkpoint_dir, args.split,
+                    tokenizer, model, train_data, dev_data,
+                    batch_size, max_length, args.gpt2, args.init_method, args.prefix_type,
+                    template_idx, args.method,
+                    args.lr, args.prior_weight, args.aux_weight, args.regularization_weight,
+                    args.warmup_steps, ds_config, local_rank, prompt,
+                    use_demonstrations=args.use_demonstrations,
+                    use_calibration=args.use_calibration,
+                    ensemble=args.ensemble,
+                    is_null=args.split is None,
+                    prompt_tune=args.prompt_tune,
+                    head_tune=args.head_tune,
+                    transform_tune=args.transform_tune,
+                    prior_tune=args.prior_tune,
+                    bad=args.bad,
+                    do_check=args.do_check,
+                    n_prefix=args.n_prefix,
+                    deep_speed=args.deep_speed)
+
+            accs.append(acc)
+            f1s.append(f1)
+
+        if args.split is not None:
+            logger.info("Accuracy = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(accs), 100*np.min(accs)))
+            logger.info("Micro-F1 = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(f1s), 100*np.min(f1s)))
+    
+    else:
+        assert args.prompt_tune and args.prompt_task != None and train_task == args.task
+
+        lrs = [0.1, 0.01, 0.001, 0.0001]
+        seeds = [100, 13, 21]
         if train_task in crossfit_datasets:
-            train_data = train_datas[template_idx]
+            train_data = train_datas[0]
         if args.task in crossfit_datasets:
-            dev_data = dev_datas[template_idx] if args.split is not None else None
-        acc, f1 = run(logger, args.do_train, args.do_zeroshot, args.use_tau,
-                  args.task, train_task,
-                  k, seed, args.train_seed,
-                  args.out_dir, args.checkpoint_dir, args.split,
-                  tokenizer, model, train_data, dev_data,
-                  batch_size, max_length, args.gpt2, args.init_method, args.prefix_type,
-                  template_idx, args.method,
-                  args.lr, args.prior_weight, args.aux_weight, args.regularization_weight,
-                  args.warmup_steps, ds_config, local_rank,
-                  use_demonstrations=args.use_demonstrations,
-                  use_calibration=args.use_calibration,
-                  ensemble=args.ensemble,
-                  is_null=args.split is None,
-                  prompt_tune=args.prompt_tune,
-                  head_tune=args.head_tune,
-                  transform_tune=args.transform_tune,
-                  prior_tune=args.prior_tune,
-                  do_check=args.do_check,
-                  n_prefix=args.n_prefix,
-                  deep_speed=args.deep_speed)
+            dev_data = dev_datas[0] if args.split is not None else None
+        if args.task in crossfit_datasets:
+            real_dev_datas = [load_data(args.data_dir, args.task, k, seed, "dev", template_idx=0)] 
+        else:
+            real_dev_data = load_data(args.data_dir, args.task, k, seed, "dev")
+        lr_accs = []
+        for lr in lrs:
+            acc, f1 = run(logger, args.do_train, args.do_zeroshot, args.use_tau,
+                          args.task, train_task, args.prompt_task,
+                          k, seed, args.train_seed,
+                          args.out_dir, args.checkpoint_dir, args.split,
+                          tokenizer, model, train_data, real_dev_data,
+                          batch_size, max_length, args.gpt2, args.init_method, args.prefix_type,
+                          0, args.method,
+                          lr, args.prior_weight, args.aux_weight, args.regularization_weight,
+                          args.warmup_steps, ds_config, local_rank, prompt,
+                          use_demonstrations=args.use_demonstrations,
+                          use_calibration=args.use_calibration,
+                          ensemble=args.ensemble,
+                          is_null=args.split is None,
+                          prompt_tune=args.prompt_tune,
+                          head_tune=args.head_tune,
+                          transform_tune=args.transform_tune,
+                          prior_tune=args.prior_tune,
+                          bad=args.bad,
+                          do_check=args.do_check,
+                          n_prefix=args.n_prefix,
+                          deep_speed=args.deep_speed)
+            lr_accs.append((lr, acc))
+        best_lr = sorted(lr_accs, key=lambda x:x[1], reverse=True)[0][0]
+        seed_accs = []
+        for tseed in seeds:
+            acc, f1 = run(logger, args.do_train, args.do_zeroshot, args.use_tau,
+                          args.task, train_task, args.prompt_task,
+                          k, seed, tseed,
+                          args.out_dir, args.checkpoint_dir, args.split,
+                          tokenizer, model, train_data, dev_data,
+                          batch_size, max_length, args.gpt2, args.init_method, args.prefix_type,
+                          0, args.method,
+                          best_lr, args.prior_weight, args.aux_weight, args.regularization_weight,
+                          args.warmup_steps, ds_config, local_rank, prompt,
+                          use_demonstrations=args.use_demonstrations,
+                          use_calibration=args.use_calibration,
+                          ensemble=args.ensemble,
+                          is_null=args.split is None,
+                          prompt_tune=args.prompt_tune,
+                          head_tune=args.head_tune,
+                          transform_tune=args.transform_tune,
+                          prior_tune=args.prior_tune,
+                          bad=args.bad,
+                          do_check=args.do_check,
+                          n_prefix=args.n_prefix,
+                          deep_speed=args.deep_speed)
+            seed_accs.append(acc)
+        logger.info("Results for robust evalution on {} with prompt of {} with lr={}".format(args.task, args.prompt_task, best_lr))
+        logger.info("Accuracy = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(seed_accs), 100*np.min(seed_accs)))
+        
 
-        accs.append(acc)
-        f1s.append(f1)
-
-    if args.split is not None:
-        logger.info("Accuracy = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(accs), 100*np.min(accs)))
-        logger.info("Micro-F1 = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(f1s), 100*np.min(f1s)))
-
-
-def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
-        train_seed,
+def run(logger, do_train, do_zeroshot, use_tau, task, train_task, prompt_task,
+        k, seed, train_seed,
         out_dir, checkpoint_dir, split, tokenizer, model,
         train_data, dev_data,
         batch_size, max_length, gpt2, init_method, prefix_type,
         template_idx, method_type, learning_rate, 
         prior_weight, aux_weight, regularization_weight,
-        warmup_steps, ds_config, local_rank,
+        warmup_steps, ds_config, local_rank, prompt,
         use_demonstrations=False,
         use_calibration=False,
         ensemble=False,
@@ -199,7 +276,8 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         head_tune=False,
         transform_tune=False,
         prior_tune=False,
-        do_check=False, n_prefix=20,
+        bad=False,
+        do_check=False, n_prefix=-1,
         deep_speed=False):
 
     if local_rank >= 0:
@@ -216,7 +294,9 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         assert method_type == "direct"
 
     if init_method == "manual":
-        n_prefix = len(tokenizer(TEMPLATES[task][0][3])["input_ids"])
+        n_prefix = len(tokenizer(prompt)["input_ids"]) if n_prefix < 0 else n_prefix
+    elif init_method == "vocab":
+        n_prefix = 20
 
     n_classes = N_LABELS_DICT.get(task, None)
     templates = get_prompts(task, template_idx)
@@ -262,9 +342,11 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
         out_dir = get_paths(out_dir, gpt2, method_type, train_task, do_zeroshot,
                             k, seed, train_seed, split, template_idx,
                             batch_size, learning_rate, warmup_steps,
-                            regularization_weight, prior_weight, aux_weight, init_method,
+                            regularization_weight, prior_weight, aux_weight, 
+                            init_method, prompt_task,
                             use_demonstrations=use_demonstrations,
                             ensemble=ensemble,
+                            bad=bad,
                             prompt_tune=prompt_tune,
                             head_tune=head_tune,
                             transform_tune=transform_tune,
@@ -272,17 +354,17 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                             n_prefix=n_prefix)
 
         k = int(k)
-        eval_period = 500
+        eval_period = 5
         if k == 16384:
             num_training_steps = 1000
         elif k == -1:
-            num_training_steps = 2000
+            num_training_steps = 20
         else:
             num_training_steps = 400
 
-        cache_paths = [os.path.join(out_dir, "{}cache-{}-{}.pkl".format(
+        cache_paths = [os.path.join(out_dir, "{}cache-{}-{}-{}.pkl".format(
             task + "-" if train_task != task else "",
-            split, step))
+            split, step, prefix_type))
                        for step in range(num_training_steps, 0, -eval_period)]
         checkpoints = [os.path.join(out_dir, "model-{}.pt".format(step))
                        for step in range(num_training_steps, 0, -eval_period)]
@@ -397,7 +479,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                         param.requires_grad = False
 
                     if init_method == "manual":
-                        prompt_ids = tokenizer(TEMPLATES[task][0][3])["input_ids"]
+                        prompt_ids = tokenizer(prompt)["input_ids"]
                         set_extra_embeddings(model, n_prefix, prompt_ids)
                         logger.info("Using a prompt of size {}".format(len(prompt_ids)))
                     else:
@@ -427,7 +509,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
             
             # distributed
             if local_rank >= 0 and not deep_speed:
-                torch.distributed.init_process_group("nccl", init_method='env://')
+            #     torch.distributed.init_process_group("nccl", init_method='env://')
                 model = torch.nn.parallel.DistributedDataParallel(model,
                                                 device_ids=[local_rank],
                                                 output_device=local_rank)
@@ -437,19 +519,20 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                   learning_rate=learning_rate,
                   regularization_weight=regularization_weight,
                   aux_weight=aux_weight,
-                  target_indices=tokenizer(TEMPLATES[task][0][3])["input_ids"] if train_task != task else None,
+                  target_indices=tokenizer(prompt)["input_ids"] if prompt != None else None,
                   warmup_steps=warmup_steps,
                   eval_period=eval_period,
                   num_training_steps=num_training_steps,
                   prompt_tune=prompt_tune,
                   head_tune=head_tune,
                   transform_tune=transform_tune,
-                  prior_tune = prior_tune,
+                  prior_tune=prior_tune,
+                  bad=bad,
                   deep_speed=deep_speed)
 
-    if local_rank > 0:
-        logger.info("rank {} exited!".format(local_rank))
-        exit()
+    # if local_rank > 0:
+    #     logger.info("rank {} exited!".format(local_rank))
+    #     exit()
 
     input_tensors = prepare_data(
         tokenizer, train_data, dev_data,
@@ -556,7 +639,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                 
                 if prefix_type == "discrete":
                     prefix_ids, aux_loss = model.transformer.wte.map_to_discrete()
-                    logger.info("The mapped discrete prefix is: {}".format(tokenizer.convert_ids_to_tokens(prefix_ids)))
+                    logger.info("The mapped discrete prefix is: {}".format(tokenizer.decode(prefix_ids)))
                     logger.info("The auxiliary loss is: {}".format(aux_loss))
 
                 # For debugging
@@ -573,7 +656,8 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, k, seed,
                 losses.append(inference(model,
                                         input_tensor,
                                         batch_size,
-                                        prior_inputs=prior_input_tensors[i] if prior_input_tensors != None else None))
+                                        prior_inputs=prior_input_tensors[i] if prior_input_tensors != None else None,
+                                        bad=bad))
 
             with open(cache_path, "wb") as f:
                 pkl.dump(losses, f)
@@ -658,11 +742,14 @@ if __name__ == '__main__':
     parser.add_argument("--head_tune", default=False, action="store_true")
     parser.add_argument("--transform_tune", default=False, action="store_true")
     parser.add_argument("--prior_tune", default=False, action="store_true")
+    parser.add_argument("--bad", default=False, action="store_true")
+    parser.add_argument("--robust_eval", default=False, action="store_true")
 
     parser.add_argument("--log_file", default=None, type=str)
 
     parser.add_argument("--task", type=str, default="SST-2")
     parser.add_argument("--train_task", type=str, default=None)
+    parser.add_argument("--prompt_task", type=str, default=None)
 
     parser.add_argument("--k", type=str, default="16")
     parser.add_argument("--seed", type=str, default="100")
@@ -677,10 +764,11 @@ if __name__ == '__main__':
     parser.add_argument("--data_dir", type=str, default="data")
     parser.add_argument("--out_dir", type=str, default="out")
     parser.add_argument("--checkpoint_dir", type=str, default=None)
+    parser.add_argument("--prompts_dir", type=str, default="prompts")
 
     parser.add_argument("--split", type=str, default=None)
     parser.add_argument("--method", type=str, default="direct")
-    parser.add_argument("--n_prefix", type=int, default=20)
+    parser.add_argument("--n_prefix", type=int, default=-1)
     parser.add_argument("--gpt2", type=str, default="gpt2-large")
     parser.add_argument("--init_method", type=str, default="vocab")
     parser.add_argument("--prefix_type", type=str, default="soft")

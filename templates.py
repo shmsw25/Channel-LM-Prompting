@@ -63,7 +63,7 @@ TEMPLATES = {
         ("%s\\n\\nDoes this next sentence follow, given the preceding text?\\n%s\\n\\n", "%s. ", ["yes", "no", "maybe"])
     ],
     'tweet_eval-hate': [
-        ("%s", "This is %s to hate speech. ", ["unrelated", "related"], "Determine whether the following two sentences have the same meaning. "),
+        ("%s", "This is %s to hate speech. ", ["unrelated", "related"], "Determine whether the following sentence is hate speech. "),
         ("%s\\n\\nIs it hate speech?\\n\\n", "%s. ", ["no", "yes"]),
         ("%s\\n\\nCan we conclude that it is hate speech?\\n\\n", "%s. ", ["no", "yes"]),
         ("%s\\n\\nWhat's the best answer to this question: is it hate speech?\\n\\n", "%s. ", ["no", "yes"]),
@@ -191,6 +191,6 @@ TEMPLATES = {
         ("%s the answer is: ", "the answer is:"),
     ],
     'SST-2': [
-        ("%s", "", [], "Detemine the sentiment of the sentence. ")
+        ("%s", "", [], "Determine the sentiment of the sentence. ")
     ]
 }
