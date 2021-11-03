@@ -2,7 +2,7 @@ version: v2-alpha
 description: continuous prompt tuning
 tasks:
   - image:
-      beaker: 01FKKSRN0RCHB6Y8VZT1J3BR0H
+      beaker: 01FKKVYHE3XWS26SVCWHEBCKC0
     arguments: [python3, -m, torch.distributed.launch, --nproc_per_node=2, main.py,
                   --task, SST-2,
                   --prompt_task, subtask047_misc_answering_science_questions,
