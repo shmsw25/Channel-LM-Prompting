@@ -329,3 +329,20 @@ def load_prompt(prompts_dir, prompt_task):
     if prompt_task not in prompts:
         raise NotImplementedError()
     return prompts[prompt_task]
+
+
+def output_metrices(args, results, prompt, best_lr):
+    metrices = {
+        "taskA": args.task,
+        "taskB": args.prompt_task,
+        "discrete_prompt": prompt,
+        "optimize_against_A": args.bad,
+        "gamma": args.aux_weight,
+        "learning_rate": best_lr,
+        "average_accuracy_A": np.mean([result[0] for result in results]),
+        "worst_accuracy_A": np.min([result[0] for result in results])
+    }
+
+    with open(os.path.join(args.out_dir, "metrics.json"), 'w') as f:
+        json.dump(metrices, f)
+    
