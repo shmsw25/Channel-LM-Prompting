@@ -1,0 +1,33 @@
+version: v2-alpha
+description: temporal drift (reddit) - 2013
+tasks:
+  - image:
+      beaker: im_0anchwc00ylx
+    arguments: [CUDA_VISIBLE_DEVICES=1,2,
+                  python3, -m, torch.distributed.launch, --nproc_per_node=2, main.py,
+                  --task, SST-2,
+                  --prompt_task, subtask047_misc_answering_science_questions,
+                  --split, test,
+                  --data_dir, data,
+                  --out_dir, outputs,
+                  --gpt2, gpt2-large,
+                  --method, direct,
+                  --do_train,
+                  --prompt_tune,
+                  --batch_size, 4,
+                  --init_method manual,
+                  --k, -1,
+                  --aux_weight, 0.001,
+                  --robust_eval
+    ]
+    datasets:
+      - mountPath: /inputs
+        source:
+          beaker: ds_dg1uyx05medf
+    result:
+      path: /outputs
+    resources:
+      gpuCount: 2
+    context:
+      cluster: ai2/on-prem-mosaic
+      priority: normal
