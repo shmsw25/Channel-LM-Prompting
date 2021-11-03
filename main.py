@@ -355,13 +355,13 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, prompt_task,
                             n_prefix=n_prefix)
 
         k = int(k)
-        eval_period = 500
+        eval_period = 5
         if k == 16384:
             num_training_steps = 1000
         elif k == -1:
-            num_training_steps = 2000
+            num_training_steps = 10
         else:
-            num_training_steps = 400
+            num_training_steps = 10
 
         cache_paths = [os.path.join(out_dir, "{}cache-{}-{}-{}.pkl".format(
             task + "-" if train_task != task else "",
