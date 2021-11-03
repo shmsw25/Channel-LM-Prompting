@@ -1,33 +1,36 @@
 version: v2-alpha
-description: temporal drift (reddit) - 2013
+description: continuous prompt tuning
 tasks:
   - image:
-      beaker: im_0anchwc00ylx
-    arguments: [CUDA_VISIBLE_DEVICES=1,2,
-                  python3, -m, torch.distributed.launch, --nproc_per_node=2, main.py,
+      beaker: 01FKKN12JY6R278P2KFG02F5RA
+    arguments: [python3, -m, torch.distributed.launch, --nproc_per_node=2, main.py,
                   --task, SST-2,
                   --prompt_task, subtask047_misc_answering_science_questions,
                   --split, test,
                   --data_dir, data,
-                  --out_dir, outputs,
+                  --out_dir, /outputs,
                   --gpt2, gpt2-large,
                   --method, direct,
                   --do_train,
                   --prompt_tune,
                   --batch_size, 4,
-                  --init_method manual,
+                  --init_method, manual,
                   --k, -1,
                   --aux_weight, 0.001,
-                  --robust_eval
+                  --robust_eval,
+                  --bad
     ]
+    envVars:
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0,1"
     datasets:
       - mountPath: /inputs
         source:
-          beaker: ds_dg1uyx05medf
+          beaker: 01FKKQF1MB1SQXCZQBGXSE3R07
     result:
       path: /outputs
     resources:
       gpuCount: 2
     context:
-      cluster: ai2/on-prem-mosaic
-      priority: normal
+      cluster: ai2/on-prem-ai2-server
+      priority: low

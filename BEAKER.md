@@ -9,6 +9,7 @@
  
 - Step 3: build docker image for the repo: `docker build -t prompting_project .`
 - Step 3.1: build beaker image for our docker image: `beaker image create -n prompting_project prompting_project --workspace [WORKSPACE]`
+  - If you already have an image with this name, delete the old one: `beaker image delete -n prompting_project`
 
 
 ### the main items which is typically quick
