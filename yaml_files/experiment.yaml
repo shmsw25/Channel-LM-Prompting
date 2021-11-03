@@ -2,8 +2,8 @@ version: v2-alpha
 description: continuous prompt tuning
 tasks:
   - image:
-      beaker: 01FKKN12JY6R278P2KFG02F5RA
-    arguments: [python3, main.py,
+      beaker: 01FKKSRN0RCHB6Y8VZT1J3BR0H
+    arguments: [python3, -m, torch.distributed.launch, --nproc_per_node=2, main.py,
                   --task, SST-2,
                   --prompt_task, subtask047_misc_answering_science_questions,
                   --split, test,
@@ -20,14 +20,17 @@ tasks:
                   --robust_eval,
                   --bad
     ]
+    envVars:
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0,1"
     datasets:
-      - mountPath: /inputs
+      - mountPath: /data
         source:
-          beaker: 01FKKRM9498AE569CDANAZDMHA
+          beaker: 01FKKSWFTK1JWSYCCMC2YDCBQS
     result:
       path: /outputs
     resources:
       gpuCount: 2
     context:
-      cluster: ai2/on-prem-ai2-server
+      cluster: ai2/on-prem-aristo
       priority: low
