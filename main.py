@@ -258,7 +258,7 @@ def main(logger, args):
             seed_accs.append((acc, f1))
         logger.info("Results for robust evalution on {} with prompt of {} with lr={}".format(args.task, args.prompt_task, best_lr))
         logger.info("Accuracy = %.1f (Avg) / %.1f (Worst)" % (100*np.mean([seed_acc[0] for seed_acc in seed_accs]), 100*np.min([seed_acc[0] for seed_acc in seed_accs])))
-        output_metrices(args, seed_accs, prompt, best_lr)
+        output_metrices(args, seed_accs, prompt, len(tokenizer(prompt)["input_ids"]), best_lr)
         
 
 def run(logger, do_train, do_zeroshot, use_tau, task, train_task, prompt_task,
@@ -515,7 +515,7 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, prompt_task,
                                                 device_ids=[local_rank],
                                                 output_device=local_rank)
 
-            train(logger, model, inputs, batch_size, out_dir, ds_config, max(local_rank, 0),
+            train(logger, model, inputs, batch_size, out_dir, ds_config, local_rank,
                   prior_inputs=prior_input_tensors,
                   learning_rate=learning_rate,
                   regularization_weight=regularization_weight,
@@ -775,7 +775,7 @@ if __name__ == '__main__':
     parser.add_argument("--prefix_type", type=str, default="soft")
 
     parser.add_argument("--deep_speed", default=False, action="store_true")
-    parser.add_argument("--local_rank", type=str)
+    parser.add_argument("--local_rank", type=str, default=None)
 
     args = parser.parse_args()
 

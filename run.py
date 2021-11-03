@@ -51,7 +51,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
     stop_training=False
 
     logger.info("Start training")
-    for epoch in tqdm(range(num_training_steps)):
+    for epoch in range(num_training_steps):
         for batch in dataloader:
             global_step += 1
 
@@ -101,7 +101,7 @@ def train(logger, model, inputs, batch_size, output_dir, ds_config, local_rank,
                     if scheduler is not None:
                         scheduler.step()
 
-            if global_step % eval_period == 0 and local_rank == 0:
+            if global_step % eval_period == 0 and local_rank <= 0:
                 if prior_tune:
                     keys = ["lm_head.priors", "lm_head.gamma"]
                     if prompt_tune:
