@@ -13,7 +13,7 @@ from collections import Counter, defaultdict
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 from transformers.deepspeed import HfDeepSpeedConfig
 
-from data import load_data, prepare_data, load_prompt
+from data import load_data, prepare_data, load_prompt, output_metrices
 from run import train, inference
 from model_util import load_checkpoint, set_extra_embeddings, \
     set_separate_lm_head, set_separate_embeddings, set_transformed_lm_head, set_prior
@@ -255,9 +255,10 @@ def main(logger, args):
                           do_check=args.do_check,
                           n_prefix=args.n_prefix,
                           deep_speed=args.deep_speed)
-            seed_accs.append(acc)
+            seed_accs.append((acc, f1))
         logger.info("Results for robust evalution on {} with prompt of {} with lr={}".format(args.task, args.prompt_task, best_lr))
-        logger.info("Accuracy = %.1f (Avg) / %.1f (Worst)" % (100*np.mean(seed_accs), 100*np.min(seed_accs)))
+        logger.info("Accuracy = %.1f (Avg) / %.1f (Worst)" % (100*np.mean([seed_acc[0] for seed_acc in seed_accs]), 100*np.min([seed_acc[0] for seed_acc in seed_accs])))
+        output_metrices(args, seed_accs, prompt, best_lr)
         
 
 def run(logger, do_train, do_zeroshot, use_tau, task, train_task, prompt_task,
@@ -354,11 +355,11 @@ def run(logger, do_train, do_zeroshot, use_tau, task, train_task, prompt_task,
                             n_prefix=n_prefix)
 
         k = int(k)
-        eval_period = 5
+        eval_period = 500
         if k == 16384:
             num_training_steps = 1000
         elif k == -1:
-            num_training_steps = 20
+            num_training_steps = 2000
         else:
             num_training_steps = 400
 
