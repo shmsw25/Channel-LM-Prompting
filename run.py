@@ -36,6 +36,7 @@ def train(logger, model, inputs, batch_size, output_dir,
     stop_training=False
 
     logger.info("Start training")
+    scaler = torch.cuda.amp.GradScaler()
     for epoch in range(num_training_steps):
         for batch in dataloader:
             global_step += 1
@@ -48,22 +49,28 @@ def train(logger, model, inputs, batch_size, output_dir,
             else:
                 labels=batch[3].cuda()
 
-            loss = run_model(model, input_ids, attention_mask, token_type_ids, labels=labels)
-            loss = loss.mean()
+            with torch.cuda.amp.autocast():
+                loss = run_model(model, input_ids, attention_mask, token_type_ids, labels=labels)
+                loss = loss.mean()
 
             if torch.isnan(loss).data:
                 print ("Stop training because loss=%s" % (loss.data))
                 stop_training=True
                 break
             train_losses.append(loss.detach().cpu())
-            loss.backward()
+            # loss.backward()
+            scaler.scale(loss).backward()
+            # print(torch.cuda.memory_allocated())
             if global_step % gradient_accumulation_steps == 0:
+                scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-                optimizer.step()    # We have accumulated enought gradients
+                scaler.step(optimizer)
+                scaler.update()
+                # optimizer.step()    # We have accumulated enought gradients
                 model.zero_grad()
                 if scheduler is not None:
                     scheduler.step()
-
+            
             if global_step % eval_period == 0:
                 if prompt_tune:
                     keys = ["transformer.wte.new_embed.weight"]
