@@ -10,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from collections import Counter, defaultdict
 
-from transformers import GPT2Tokenizer, GPT2LMHeadModel
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, AutoModelForCausalLM, AutoConfig
 
 from data import load_data, prepare_data
 from run import train, inference
@@ -198,9 +198,15 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
             os.mkdir(out_dir)
 
         if not do_check:
-
-            model = GPT2LMHeadModel.from_pretrained(gpt2)
-
+            config = AutoConfig.from_pretrained(gpt2)
+            config.gradient_checkpointing = True
+            model = AutoModelForCausalLM.from_pretrained(gpt2, config=config)
+            print(model.config)
+            
+            if getattr(model.config, "gradient_checkpointing", False):
+                print("checking")
+            else:
+                print("not checking")
             if prompt_tune:
                 for param in model.parameters():
                     param.requires_grad = False
@@ -225,6 +231,10 @@ def run(logger, do_train, do_zeroshot, task, train_task, k, seed,
                     param.requires_grad = True
 
             model = model.cuda()
+            if getattr(model.config, "gradient_checkpointing", False):
+                print("checking")
+            else:
+                print("not checking")
 
             if torch.cuda.device_count() > 1:
                 model = torch.nn.DataParallel(model)
